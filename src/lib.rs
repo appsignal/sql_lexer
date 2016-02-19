@@ -1,144 +1,186 @@
 #![feature(str_char)]
+#![feature(test)]
 
-#[macro_use] extern crate lazy_static;
-extern crate regex;
+extern crate test;
 
-use regex::Regex;
+mod lexer;
+mod sanitizer;
+mod writer;
 
-lazy_static! {
-    static ref WORD: Regex = Regex::new("^\\w+").unwrap();
-    static ref BACKTICKED: Regex = Regex::new("^`(.*?)`").unwrap();
-    static ref SINGLE_QUOTED: Regex = Regex::new("^'(.*?|[^'])'").unwrap();
+#[derive(Debug,PartialEq)]
+pub enum Keyword {
+    Select,
+    From,
+    Where,
+    And,
+    In,
+    Other(BufferPosition)
 }
 
 #[derive(Debug,PartialEq)]
 pub enum Operator {
     Dot,
     Multiply,
-    Equals
+    Comparison(ComparisonOperator)
+}
+
+#[derive(Debug,PartialEq)]
+pub enum ComparisonOperator {
+    Equal,
+    NullSafeEqual,
+    GreaterThanOrEqual,
+    LessThanOrEqual,
+    EqualOrGreaterThan,
+    EqualOrLessThan,
+    EqualWithArrows,
+    NotEqual,
+    GreaterThan,
+    LessThan
+}
+
+#[derive(Debug,PartialEq)]
+pub struct BufferPosition {
+    pub start: usize,
+    pub end: usize
+}
+
+impl BufferPosition {
+    pub fn new(start: usize, end: usize) -> BufferPosition {
+        BufferPosition {
+            start: start,
+            end: end
+        }
+    }
 }
 
 #[derive(Debug,PartialEq)]
 pub enum Token {
-    Keyword(String),
+    Keyword(Keyword),
     Operator(Operator),
-    Grouped(String),
-    DoubleQuoted(String),
-    SingleQuoted(String),
-    Numeric(String),
-    Backticked(String),
-    Space
+    DoubleQuoted(BufferPosition),
+    SingleQuoted(BufferPosition),
+    Numeric(BufferPosition),
+    Backticked(BufferPosition),
+    Space,
+    Newline,
+    Terminator,
+    Placeholder
 }
 
-pub struct SqlLexer {
+#[derive(Debug,PartialEq)]
+pub struct Sql {
     buf: String,
-    len: usize,
-    pos: usize
+    pub tokens: Vec<Token>
 }
 
-impl SqlLexer {
-    pub fn new(buf: String) -> SqlLexer {
-        let len = buf.len();
-        SqlLexer {
-            buf: buf,
-            len: len,
-            pos: 0
-        }
-    }
-
-    fn find_with_regex(&self, regex: &Regex) -> Option<(usize, usize)> {
-        match regex.find(&self.buf[self.pos..]) {
-            Some((s, e)) => Some((s + self.pos, e + self.pos)),
-            None => None
-        }
+impl Sql {
+    pub fn buffer_content(&self, pos: &BufferPosition) -> &str {
+        &self.buf[pos.start..pos.end]
     }
 }
 
-impl Iterator for SqlLexer {
-    type Item = Token;
+/// Lex a sql string into a `Sql` struct that contains the original
+/// buffer and the tokens found.
+pub fn lex(buf: String) -> Sql {
+    lexer::SqlLexer::new(buf).lex()
+}
 
-    fn next(&mut self) -> Option<Token> {
-        if self.pos >= self.len {
-            return None;
-        }
+/// Write a `Sql` struct back to a sql string.
+pub fn write(sql: Sql) -> String {
+    writer::SqlWriter::new(sql).write()
+}
 
-        match self.buf.char_at(self.pos) {
-            c if c.is_alphabetic() => {
-                let (start, end) = match self.find_with_regex(&WORD) {
-                    Some((s, e)) => (s, e),
-                    None => return None
-                };
-                self.pos = end;
-                Some(Token::Keyword(self.buf[start..end].to_string()))
-            },
-            '`' => {
-                let (start, end) = match self.find_with_regex(&BACKTICKED) {
-                    Some((s, e)) => (s, e),
-                    None => return None
-                };
-                self.pos = end;
-                Some(Token::Backticked(self.buf[start + 1..end - 1].to_string()))
-            },
-            '\'' => {
-                let (start, end) = match self.find_with_regex(&SINGLE_QUOTED) {
-                    Some((s, e)) => (s, e),
-                    None => return None
-                };
-                self.pos = end;
-                Some(Token::SingleQuoted(self.buf[start + 1..end - 1].to_string()))
-            },
-            '.' => {
-                self.pos += 1;
-                Some(Token::Operator(Operator::Dot))
-            },
-            '*' => {
-                self.pos += 1;
-                Some(Token::Operator(Operator::Multiply))
-            },
-            '=' => {
-                self.pos += 1;
-                Some(Token::Operator(Operator::Equals))
-            },
-            ' ' => {
-                self.pos += 1;
-                Some(Token::Space)
-            },
-            _ => None
-        }
-    }
+/// Sanitize a `Sql` struct
+pub fn sanitize(sql: Sql) -> Sql {
+    sanitizer::SqlSanitizer::new(sql).sanitize()
+}
+
+/// Returns a sanitized sql string
+pub fn sanitize_string(buf: String) -> String {
+    write(sanitize(lex(buf)))
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{SqlLexer,Token,Operator};
+    use test;
+    use super::Sql;
+    use super::{Token,Operator,BufferPosition,Keyword,ComparisonOperator};
 
     #[test]
-    fn test_lexing_single_quoted() {
-        let sql = "SELECT `table`.* FROM `table` WHERE `id` = 'secret'".to_string();
+    fn test_buffer_content() {
+        let sql = Sql {
+            buf: "SELECT `table`.* FROM `table` WHERE `id` = 'secret';".to_string(),
+            tokens: Vec::new()
+        };
+        let buffer_position = BufferPosition::new(17, 21);
+
+        assert_eq!("FROM", sql.buffer_content(&buffer_position));
+    }
+
+    #[test]
+    fn test_lex() {
+        let sql_buffer = "SELECT * FROM `table`";
 
         let expected = vec![
-            Token::Keyword("SELECT".to_string()),
+            Token::Keyword(Keyword::Select),
             Token::Space,
-            Token::Backticked("table".to_string()),
-            Token::Operator(Operator::Dot),
             Token::Operator(Operator::Multiply),
             Token::Space,
-            Token::Keyword("FROM".to_string()),
+            Token::Keyword(Keyword::From),
             Token::Space,
-            Token::Backticked("table".to_string()),
-            Token::Space,
-            Token::Keyword("WHERE".to_string()),
-            Token::Space,
-            Token::Backticked("id".to_string()),
-            Token::Space,
-            Token::Operator(Operator::Equals),
-            Token::Space,
-            Token::Keyword("LIMIT".to_string()),
-            Token::Space,
-            Token::Numeric("1".to_string())
+            Token::Backticked(BufferPosition::new(15, 20))
         ];
 
-        let lexer = SqlLexer::new(sql);
-        assert_eq!(lexer.collect::<Vec<Token>>(), expected);
+        let sql = super::lex(sql_buffer.to_string());
+        assert_eq!(sql.buf, sql_buffer);
+        assert_eq!(sql.tokens, expected);
+    }
+
+    #[test]
+    fn test_write() {
+        let sql_buffer = "SELECT * FROM `table`";
+        assert_eq!(super::write(super::lex(sql_buffer.to_string())), sql_buffer);
+    }
+
+    #[test]
+    fn test_sanitize() {
+        let sql = super::sanitize(super::lex("SELECT * FROM `table` WHERE `id` = 1;".to_string()));
+
+        let expected = vec![
+            Token::Keyword(Keyword::Select),
+            Token::Space,
+            Token::Operator(Operator::Multiply),
+            Token::Space,
+            Token::Keyword(Keyword::From),
+            Token::Space,
+            Token::Backticked(BufferPosition::new(15, 20)),
+            Token::Space,
+            Token::Keyword(Keyword::Where),
+            Token::Space,
+            Token::Backticked(BufferPosition::new(29, 31)),
+            Token::Space,
+            Token::Operator(Operator::Comparison(ComparisonOperator::Equal)),
+            Token::Space,
+            Token::Placeholder,
+            Token::Terminator
+        ];
+
+        assert_eq!(sql.tokens, expected);
+    }
+
+    #[test]
+    fn test_sanitize_string() {
+        assert_eq!(
+            super::sanitize_string("SELECT * FROM `table` WHERE id = 1;".to_string()),
+            "SELECT * FROM `table` WHERE id = ?;"
+        );
+    }
+
+    #[bench]
+    fn bench_sanitize_string(b: &mut test::Bencher) {
+        b.iter(|| {
+            test::black_box(super::sanitize_string("SELECT `table`.* FROM `table` WHERE `id` = 'secret' LIMIT 1;".to_string()));
+            test::black_box(super::sanitize_string("SELECT `table`.* FROM `table` WHERE `id` = 1 LIMIT 1;".to_string()));
+        });
     }
 }
