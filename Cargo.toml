@@ -1,0 +1,8 @@
+[package]
+name = "sql_lexer"
+version = "0.1.0"
+authors = ["Thijs Cadier <thijs@appsignal.com>"]
+
+[dependencies]
+"lazy_static" = "*"
+"regex" = "*"
