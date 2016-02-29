@@ -14,6 +14,11 @@ pub enum Keyword {
     Where,
     And,
     In,
+    Update,
+    Set,
+    Insert,
+    Into,
+    Values,
     Other(BufferPosition)
 }
 
@@ -198,6 +203,13 @@ mod tests {
     fn bench_sanitize_string_in(b: &mut test::Bencher) {
         b.iter(|| {
             test::black_box(super::sanitize_string("SELECT `table`.* FROM `table` WHERE `id` IN (1, 2, 3) LIMIT 1;".to_string()));
+        });
+    }
+
+    #[bench]
+    fn bench_sanitize_insert(b: &mut test::Bencher) {
+        b.iter(|| {
+            test::black_box(super::sanitize_string("INSERT INTO \"table\" (\"field1\", \"field2\") VALUES ('value', 1);".to_string()));
         });
     }
 }

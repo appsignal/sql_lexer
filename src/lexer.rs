@@ -165,6 +165,16 @@ impl SqlLexer {
                         "and" => Some(Keyword::And),
                         "IN" => Some(Keyword::In),
                         "in" => Some(Keyword::In),
+                        "UPDATE" => Some(Keyword::Update),
+                        "update" => Some(Keyword::Update),
+                        "SET" => Some(Keyword::Set),
+                        "set" => Some(Keyword::Set),
+                        "INSERT" => Some(Keyword::Insert),
+                        "insert" => Some(Keyword::Insert),
+                        "INTO" => Some(Keyword::Into),
+                        "into" => Some(Keyword::Into),
+                        "VALUES" => Some(Keyword::Values),
+                        "values" => Some(Keyword::Values),
                         _ => None
                     };
                     match keyword {
@@ -335,7 +345,7 @@ mod tests {
 
     #[test]
     fn test_known_keywords() {
-        let sql = "SELECT FROM WHERE AND IN".to_string();
+        let sql = "SELECT FROM WHERE AND IN UPDATE SET INSERT INTO VALUES".to_string();
         let lexer = SqlLexer::new(sql);
 
         let expected = vec![
@@ -347,7 +357,17 @@ mod tests {
             Token::Space,
             Token::Keyword(Keyword::And),
             Token::Space,
-            Token::Keyword(Keyword::In)
+            Token::Keyword(Keyword::In),
+            Token::Space,
+            Token::Keyword(Keyword::Update),
+            Token::Space,
+            Token::Keyword(Keyword::Set),
+            Token::Space,
+            Token::Keyword(Keyword::Insert),
+            Token::Space,
+            Token::Keyword(Keyword::Into),
+            Token::Space,
+            Token::Keyword(Keyword::Values),
         ];
 
         assert_eq!(lexer.lex().tokens, expected);
@@ -355,7 +375,7 @@ mod tests {
 
     #[test]
     fn test_known_keywords_lowercase() {
-        let sql = "select from where and in".to_string();
+        let sql = "select from where and in update set insert into values".to_string();
         let lexer = SqlLexer::new(sql);
 
         let expected = vec![
@@ -367,7 +387,17 @@ mod tests {
             Token::Space,
             Token::Keyword(Keyword::And),
             Token::Space,
-            Token::Keyword(Keyword::In)
+            Token::Keyword(Keyword::In),
+            Token::Space,
+            Token::Keyword(Keyword::Update),
+            Token::Space,
+            Token::Keyword(Keyword::Set),
+            Token::Space,
+            Token::Keyword(Keyword::Insert),
+            Token::Space,
+            Token::Keyword(Keyword::Into),
+            Token::Space,
+            Token::Keyword(Keyword::Values),
         ];
 
         assert_eq!(lexer.lex().tokens, expected);

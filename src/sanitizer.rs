@@ -5,7 +5,9 @@ enum State {
     Default,
     ComparisonOperator,
     In,
-    InStarted
+    InStarted,
+    InsertValues,
+    InsertValuesStarted
 }
 
 pub struct SqlSanitizer {
@@ -31,6 +33,7 @@ impl SqlSanitizer {
             match self.sql.tokens[pos] {
                 Token::Operator(Operator::Comparison(_)) => state = State::ComparisonOperator,
                 Token::Keyword(Keyword::In) => state = State::In,
+                Token::Keyword(Keyword::Values) => state = State::InsertValues,
                 Token::SingleQuoted(_) | Token::DoubleQuoted(_) | Token::Numeric(_) => {
                     match state {
                         State::ComparisonOperator => {
@@ -52,11 +55,16 @@ impl SqlSanitizer {
                             }
                             self.sql.tokens.insert(start_pos, Token::Placeholder);
                         },
+                        State::InsertValuesStarted => {
+                            // We're in an insert block, insert placeholder.
+                            self.placeholder(pos);
+                        },
                         _ => ()
                     }
-                    state = State::Default;
                 },
                 Token::Operator(Operator::ParentheseOpen) if state == State::In => state = State::InStarted,
+                Token::Operator(Operator::ParentheseOpen) if state == State::InsertValues => state = State::InsertValuesStarted,
+                Token::Operator(Operator::Comma) if state == State::InsertValuesStarted => (), // If this is a , in a values block keep state
                 Token::Space => (),
                 _ => state = State::Default
             }
@@ -126,6 +134,38 @@ mod tests {
         assert_eq!(
             sanitize_string("SELECT `table`.* FROM `table` WHERE `id` IN (SELECT `id` FROM `something` WHERE `a` = 1) LIMIT 1;".to_string()),
             "SELECT `table`.* FROM `table` WHERE `id` IN (SELECT `id` FROM `something` WHERE `a` = ?) LIMIT 1;"
+        );
+    }
+
+    #[test]
+    fn test_update_backquote_tables() {
+        assert_eq!(
+            sanitize_string("UPDATE `table` SET `field` = \"value\", `field2` = 1 WHERE id = 1;".to_string()),
+            "UPDATE `table` SET `field` = ?, `field2` = ? WHERE id = ?;"
+        );
+    }
+
+    #[test]
+    fn test_update_double_quote_tables() {
+        assert_eq!(
+            sanitize_string("UPDATE \"table\" SET \"field1\" = 'value', \"field2\" = 1 WHERE id = 1;".to_string()),
+            "UPDATE \"table\" SET \"field1\" = ?, \"field2\" = ? WHERE id = ?;"
+        );
+    }
+
+    #[test]
+    fn test_insert_backquote_tables() {
+        assert_eq!(
+            sanitize_string("INSERT INTO `table` (`field1`, `field2`) VALUES ('value', 1);".to_string()),
+            "INSERT INTO `table` (`field1`, `field2`) VALUES (?, ?);"
+        );
+    }
+
+    #[test]
+    fn test_insert_doublequote_tables() {
+        assert_eq!(
+            sanitize_string("INSERT INTO \"table\" (\"field1\", \"field2\") VALUES ('value', 1);".to_string()),
+            "INSERT INTO \"table\" (\"field1\", \"field2\") VALUES (?, ?);"
         );
     }
 }
