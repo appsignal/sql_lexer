@@ -37,6 +37,7 @@ impl SqlWriter {
                 &Token::Operator(Operator::Multiply) => out.push('*'),
                 &Token::Operator(Operator::ParentheseOpen) => out.push('('),
                 &Token::Operator(Operator::ParentheseClose) => out.push(')'),
+                &Token::Operator(Operator::Colon) => out.push(':'),
                 &Token::Operator(Operator::Comparison(ComparisonOperator::Equal)) => out.push('='),
                 &Token::Operator(Operator::Comparison(ComparisonOperator::NullSafeEqual)) => out.push_str("<=>"),
                 &Token::Operator(Operator::Comparison(ComparisonOperator::GreaterThanOrEqual)) => out.push_str(">="),
@@ -115,7 +116,7 @@ mod tests {
 
     #[test]
     fn test_write_operators() {
-        let sql = ". , * ( ) <=> >= <= => => <> != = > <";
+        let sql = ". , * ( ) : <=> >= <= => => <> != = > <";
         let written = helpers::lex_and_write(sql.to_string());
 
         assert_eq!(written, sql);

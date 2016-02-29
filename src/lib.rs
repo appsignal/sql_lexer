@@ -32,6 +32,7 @@ pub enum Operator {
     Multiply,
     ParentheseOpen,
     ParentheseClose,
+    Colon,
     Comparison(ComparisonOperator)
 }
 

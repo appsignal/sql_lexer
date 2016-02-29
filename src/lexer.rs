@@ -106,6 +106,10 @@ impl SqlLexer {
                     self.pos += 1;
                     Token::Operator(Operator::ParentheseClose)
                 },
+                ':' => {
+                    self.pos += 1;
+                    Token::Operator(Operator::Colon)
+                },
                 '*' => {
                     self.pos += 1;
                     Token::Operator(Operator::Multiply)
