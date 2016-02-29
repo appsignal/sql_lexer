@@ -94,6 +94,18 @@ impl SqlLexer {
                     self.pos += 1;
                     Token::Operator(Operator::Dot)
                 },
+                ',' => {
+                    self.pos += 1;
+                    Token::Operator(Operator::Comma)
+                },
+                '(' => {
+                    self.pos += 1;
+                    Token::Operator(Operator::ParentheseOpen)
+                },
+                ')' => {
+                    self.pos += 1;
+                    Token::Operator(Operator::ParentheseClose)
+                },
                 '*' => {
                     self.pos += 1;
                     Token::Operator(Operator::Multiply)
@@ -242,6 +254,39 @@ mod tests {
             Token::Operator(Operator::Comparison(ComparisonOperator::Equal)),
             Token::Space,
             Token::Numeric(BufferPosition::new(61, 65)),
+            Token::Terminator
+        ];
+
+        assert_eq!(lexer.lex().tokens, expected);
+    }
+
+    #[test]
+    fn test_in_query() {
+        let sql = "SELECT * FROM \"table\" WHERE \"id\" IN (1,2,3);".to_string();
+        let lexer = SqlLexer::new(sql);
+
+        let expected = vec![
+            Token::Keyword(Keyword::Select),
+            Token::Space,
+            Token::Operator(Operator::Multiply),
+            Token::Space,
+            Token::Keyword(Keyword::From),
+            Token::Space,
+            Token::DoubleQuoted(BufferPosition::new(15, 20)),
+            Token::Space,
+            Token::Keyword(Keyword::Where),
+            Token::Space,
+            Token::DoubleQuoted(BufferPosition::new(29, 31)),
+            Token::Space,
+            Token::Keyword(Keyword::In),
+            Token::Space,
+            Token::Operator(Operator::ParentheseOpen),
+            Token::Numeric(BufferPosition::new(37, 38)),
+            Token::Operator(Operator::Comma),
+            Token::Numeric(BufferPosition::new(39, 40)),
+            Token::Operator(Operator::Comma),
+            Token::Numeric(BufferPosition::new(41, 42)),
+            Token::Operator(Operator::ParentheseClose),
             Token::Terminator
         ];
 

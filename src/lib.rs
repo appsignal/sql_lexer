@@ -20,7 +20,10 @@ pub enum Keyword {
 #[derive(Debug,PartialEq)]
 pub enum Operator {
     Dot,
+    Comma,
     Multiply,
+    ParentheseOpen,
+    ParentheseClose,
     Comparison(ComparisonOperator)
 }
 
@@ -177,10 +180,23 @@ mod tests {
     }
 
     #[bench]
-    fn bench_sanitize_string(b: &mut test::Bencher) {
+    fn bench_sanitize_string_quote(b: &mut test::Bencher) {
         b.iter(|| {
             test::black_box(super::sanitize_string("SELECT `table`.* FROM `table` WHERE `id` = 'secret' LIMIT 1;".to_string()));
+        });
+    }
+
+    #[bench]
+    fn bench_sanitize_string_numeric(b: &mut test::Bencher) {
+        b.iter(|| {
             test::black_box(super::sanitize_string("SELECT `table`.* FROM `table` WHERE `id` = 1 LIMIT 1;".to_string()));
+        });
+    }
+
+    #[bench]
+    fn bench_sanitize_string_in(b: &mut test::Bencher) {
+        b.iter(|| {
+            test::black_box(super::sanitize_string("SELECT `table`.* FROM `table` WHERE `id` IN (1, 2, 3) LIMIT 1;".to_string()));
         });
     }
 }
