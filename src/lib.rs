@@ -67,7 +67,8 @@ pub enum Token {
     Space,
     Newline,
     Terminator,
-    Placeholder
+    Placeholder,
+    NumberedPlaceholder(BufferPosition)
 }
 
 #[derive(Debug,PartialEq)]

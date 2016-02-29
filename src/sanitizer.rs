@@ -106,6 +106,14 @@ mod tests {
     }
 
     #[test]
+    fn test_select_where_already_placeholder() {
+        assert_eq!(
+            sanitize_string("SELECT `table`.* FROM `table` WHERE `id` = $1 LIMIT 1;".to_string()),
+            "SELECT `table`.* FROM `table` WHERE `id` = $1 LIMIT 1;"
+        );
+    }
+
+    #[test]
     fn test_select_in() {
         assert_eq!(
             sanitize_string("SELECT `table`.* FROM `table` WHERE `id` IN (1, 2, 3) LIMIT 1;".to_string()),

@@ -140,6 +140,16 @@ impl SqlLexer {
                     self.pos += 1;
                     Token::Terminator
                 },
+                '?' => {
+                    self.pos += 1;
+                    Token::Placeholder
+                },
+                '$' => {
+                    let start = self.pos;
+                    let end = self.find_until_char(' ');
+                    self.pos = end;
+                    Token::NumberedPlaceholder(BufferPosition::new(start, end))
+                },
                 c if c.is_alphabetic() => {
                     let start = self.pos;
                     let end = self.find_until_char(' ');
@@ -404,6 +414,23 @@ mod tests {
             Token::Space,
             Token::DoubleQuoted(BufferPosition::new(16, 25)),
             Token::Terminator
+        ];
+
+        assert_eq!(lexer.lex().tokens, expected);
+    }
+
+    #[test]
+    fn test_placeholders() {
+        let sql = "? $1 $2 $23".to_string();
+        let lexer = SqlLexer::new(sql);
+        let expected = vec![
+            Token::Placeholder,
+            Token::Space,
+            Token::NumberedPlaceholder(BufferPosition::new(2, 4)),
+            Token::Space,
+            Token::NumberedPlaceholder(BufferPosition::new(5, 7)),
+            Token::Space,
+            Token::NumberedPlaceholder(BufferPosition::new(8, 11))
         ];
 
         assert_eq!(lexer.lex().tokens, expected);
