@@ -19,6 +19,9 @@ pub enum Keyword {
     Insert,
     Into,
     Values,
+    Inner,
+    Join,
+    On,
     Other(BufferPosition)
 }
 

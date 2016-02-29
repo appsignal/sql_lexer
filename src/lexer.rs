@@ -175,6 +175,12 @@ impl SqlLexer {
                         "into" => Some(Keyword::Into),
                         "VALUES" => Some(Keyword::Values),
                         "values" => Some(Keyword::Values),
+                        "INNER" => Some(Keyword::Inner),
+                        "inner" => Some(Keyword::Inner),
+                        "JOIN" => Some(Keyword::Join),
+                        "join" => Some(Keyword::Join),
+                        "ON" => Some(Keyword::On),
+                        "on" => Some(Keyword::On),
                         _ => None
                     };
                     match keyword {
@@ -345,7 +351,7 @@ mod tests {
 
     #[test]
     fn test_known_keywords() {
-        let sql = "SELECT FROM WHERE AND IN UPDATE SET INSERT INTO VALUES".to_string();
+        let sql = "SELECT FROM WHERE AND IN UPDATE SET INSERT INTO VALUES INNER JOIN ON".to_string();
         let lexer = SqlLexer::new(sql);
 
         let expected = vec![
@@ -368,6 +374,12 @@ mod tests {
             Token::Keyword(Keyword::Into),
             Token::Space,
             Token::Keyword(Keyword::Values),
+            Token::Space,
+            Token::Keyword(Keyword::Inner),
+            Token::Space,
+            Token::Keyword(Keyword::Join),
+            Token::Space,
+            Token::Keyword(Keyword::On)
         ];
 
         assert_eq!(lexer.lex().tokens, expected);
@@ -375,7 +387,7 @@ mod tests {
 
     #[test]
     fn test_known_keywords_lowercase() {
-        let sql = "select from where and in update set insert into values".to_string();
+        let sql = "select from where and in update set insert into values inner join on".to_string();
         let lexer = SqlLexer::new(sql);
 
         let expected = vec![
@@ -398,6 +410,12 @@ mod tests {
             Token::Keyword(Keyword::Into),
             Token::Space,
             Token::Keyword(Keyword::Values),
+            Token::Space,
+            Token::Keyword(Keyword::Inner),
+            Token::Space,
+            Token::Keyword(Keyword::Join),
+            Token::Space,
+            Token::Keyword(Keyword::On)
         ];
 
         assert_eq!(lexer.lex().tokens, expected);

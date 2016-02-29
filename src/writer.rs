@@ -26,6 +26,9 @@ impl SqlWriter {
                 &Token::Keyword(Keyword::Insert) => out.push_str("INSERT"),
                 &Token::Keyword(Keyword::Into) => out.push_str("INTO"),
                 &Token::Keyword(Keyword::Values) => out.push_str("VALUES"),
+                &Token::Keyword(Keyword::Inner) => out.push_str("INNER"),
+                &Token::Keyword(Keyword::Join) => out.push_str("JOIN"),
+                &Token::Keyword(Keyword::On) => out.push_str("ON"),
                 &Token::Keyword(Keyword::Other(ref pos)) => {
                     out.push_str(self.sql.buffer_content(pos));
                 },
@@ -104,7 +107,7 @@ mod tests {
 
     #[test]
     fn test_write_keywords() {
-        let sql = "SELECT FROM WHERE AND IN UPDATE SET INSERT INTO VALUES OTHER";
+        let sql = "SELECT FROM WHERE AND IN UPDATE SET INSERT INTO VALUES INNER JOIN ON OTHER";
         let written = helpers::lex_and_write(sql.to_string());
 
         assert_eq!(written, sql);

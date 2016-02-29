@@ -7,7 +7,8 @@ enum State {
     In,
     InStarted,
     InsertValues,
-    InsertValuesStarted
+    InsertValuesStarted,
+    JoinOn
 }
 
 pub struct SqlSanitizer {
@@ -31,9 +32,10 @@ impl SqlSanitizer {
             }
 
             match self.sql.tokens[pos] {
-                Token::Operator(Operator::Comparison(_)) => state = State::ComparisonOperator,
+                Token::Operator(Operator::Comparison(_)) if state != State::JoinOn => state = State::ComparisonOperator,
                 Token::Keyword(Keyword::In) => state = State::In,
                 Token::Keyword(Keyword::Values) => state = State::InsertValues,
+                Token::Keyword(Keyword::On) => state = State::JoinOn,
                 Token::SingleQuoted(_) | Token::DoubleQuoted(_) | Token::Numeric(_) => {
                     match state {
                         State::ComparisonOperator => {
@@ -65,6 +67,7 @@ impl SqlSanitizer {
                 Token::Operator(Operator::ParentheseOpen) if state == State::In => state = State::InStarted,
                 Token::Operator(Operator::ParentheseOpen) if state == State::InsertValues => state = State::InsertValuesStarted,
                 Token::Operator(Operator::Comma) if state == State::InsertValuesStarted => (), // If this is a , in a values block keep state
+                Token::Operator(Operator::Dot) if state == State::JoinOn => (), // If this is a . in a on segment keep state
                 Token::Space => (),
                 _ => state = State::Default
             }
@@ -150,6 +153,22 @@ mod tests {
         assert_eq!(
             sanitize_string("SELECT `table`.* FROM `table` WHERE `id` IN (SELECT `id` FROM `something` WHERE `a` = 1) LIMIT 1;".to_string()),
             "SELECT `table`.* FROM `table` WHERE `id` IN (SELECT `id` FROM `something` WHERE `a` = ?) LIMIT 1;"
+        );
+    }
+
+    #[test]
+    fn test_select_join_backquote_tables() {
+        assert_eq!(
+            sanitize_string("SELECT * FROM `tables` INNER JOIN `other` ON `table`.`id` = `other`.`table_id` WHERE `other`.`field` = 1);".to_string()),
+            "SELECT * FROM `tables` INNER JOIN `other` ON `table`.`id` = `other`.`table_id` WHERE `other`.`field` = ?);"
+        );
+    }
+
+    #[test]
+    fn test_select_join_doublequote_tables() {
+        assert_eq!(
+            sanitize_string("SELECT * FROM \"tables\" INNER JOIN \"other\" ON \"table\".\"id\" = \"other\".\"table_id\" WHERE \"other\".\"field\" = 1);".to_string()),
+            "SELECT * FROM \"tables\" INNER JOIN \"other\" ON \"table\".\"id\" = \"other\".\"table_id\" WHERE \"other\".\"field\" = ?);"
         );
     }
 
