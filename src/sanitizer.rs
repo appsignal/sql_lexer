@@ -114,6 +114,22 @@ mod tests {
     }
 
     #[test]
+    fn test_select_and_with_scope_and_unquoted_field() {
+        assert_eq!(
+            sanitize_string("SELECT `table`.* FROM `table` WHERE `id` = 1 AND (other_field = 1) LIMIT 1;".to_string()),
+            "SELECT `table`.* FROM `table` WHERE `id` = ? AND (other_field = ?) LIMIT 1;"
+        );
+    }
+
+    #[test]
+    fn test_count_start() {
+        assert_eq!(
+            sanitize_string("SELECT COUNT(*) FROM `table` WHERE `field` = 1;".to_string()),
+            "SELECT COUNT(*) FROM `table` WHERE `field` = ?;"
+        );
+    }
+
+    #[test]
     fn test_select_where_already_placeholder() {
         assert_eq!(
             sanitize_string("SELECT `table`.* FROM `table` WHERE `id` = $1 LIMIT 1;".to_string()),
