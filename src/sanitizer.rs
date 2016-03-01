@@ -6,7 +6,6 @@ enum State {
     ComparisonOperator,
     ComparisonScopeStarted,
     InsertValues,
-    InsertValuesStarted,
     JoinOn,
     Offset,
     Between
@@ -60,7 +59,7 @@ impl SqlSanitizer {
                             }
                             self.sql.tokens.insert(start_pos, Token::Placeholder);
                         },
-                        State::InsertValuesStarted => {
+                        State::InsertValues => {
                             // We're in an insert block, insert placeholder.
                             self.placeholder(pos);
                         },
@@ -68,8 +67,8 @@ impl SqlSanitizer {
                     }
                 },
                 Token::ParentheseOpen if state == State::ComparisonOperator => state = State::ComparisonScopeStarted,
-                Token::ParentheseOpen if state == State::InsertValues => state = State::InsertValuesStarted,
-                Token::Comma if state == State::InsertValuesStarted => (), // If this is a , in a values block keep state
+                Token::ParentheseOpen if state == State::InsertValues => (),
+                Token::Comma if state == State::InsertValues => (), // If this is a , in a values block keep state
                 Token::Dot if state == State::JoinOn => (), // If this is a . in a on segment keep state
                 Token::Space => (),
                 _ => state = State::Default
