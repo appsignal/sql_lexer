@@ -63,6 +63,7 @@ impl SqlWriter {
                 &Token::Keyword(Keyword::Or) => out.push_str("OR"),
                 &Token::Keyword(Keyword::Limit) => out.push_str("LIMIT"),
                 &Token::Keyword(Keyword::Offset) => out.push_str("OFFSET"),
+                &Token::Keyword(Keyword::Between) => out.push_str("BETWEEN"),
                 &Token::Keyword(Keyword::Other(ref pos)) => {
                     out.push_str(self.sql.buffer_content(pos));
                 },
@@ -137,7 +138,7 @@ mod tests {
 
     #[test]
     fn test_write_keywords() {
-        let sql = "SELECT FROM WHERE AND OR UPDATE SET INSERT INTO VALUES INNER JOIN ON OTHER LIMIT OFFSET";
+        let sql = "SELECT FROM WHERE AND OR UPDATE SET INSERT INTO VALUES INNER JOIN ON OTHER LIMIT OFFSET BETWEEN";
         let written = helpers::lex_and_write(sql.to_string());
 
         assert_eq!(written, sql);

@@ -221,6 +221,7 @@ impl SqlLexer {
                         "ON" | "on" => Token::Keyword(Keyword::On),
                         "LIMIT" | "limit" => Token::Keyword(Keyword::Limit),
                         "OFFSET" | "offset" => Token::Keyword(Keyword::Offset),
+                        "BETWEEN" | "between" => Token::Keyword(Keyword::Between),
                         // Logical operators
                         "IN" | "in" => Token::Operator(Operator::Logical(LogicalOperator::In)),
                         "NOT" | "not" => Token::Operator(Operator::Logical(LogicalOperator::Not)),
@@ -532,7 +533,7 @@ mod tests {
 
     #[test]
     fn test_known_keywords() {
-        let sql = "SELECT FROM WHERE AND OR UPDATE SET INSERT INTO VALUES INNER JOIN ON LIMIT OFFSET;".to_string();
+        let sql = "SELECT FROM WHERE AND OR UPDATE SET INSERT INTO VALUES INNER JOIN ON LIMIT OFFSET BETWEEN;".to_string();
         let lexer = SqlLexer::new(sql);
 
         let expected = vec![
@@ -565,6 +566,8 @@ mod tests {
             Token::Keyword(Keyword::Limit),
             Token::Space,
             Token::Keyword(Keyword::Offset),
+            Token::Space,
+            Token::Keyword(Keyword::Between),
             Token::Semicolon
         ];
 
@@ -573,7 +576,7 @@ mod tests {
 
     #[test]
     fn test_known_keywords_lowercase() {
-        let sql = "select from where and or update set insert into values inner join on limit offset;".to_string();
+        let sql = "select from where and or update set insert into values inner join on limit offset between;".to_string();
         let lexer = SqlLexer::new(sql);
 
         let expected = vec![
@@ -606,6 +609,8 @@ mod tests {
             Token::Keyword(Keyword::Limit),
             Token::Space,
             Token::Keyword(Keyword::Offset),
+            Token::Space,
+            Token::Keyword(Keyword::Between),
             Token::Semicolon
         ];
 

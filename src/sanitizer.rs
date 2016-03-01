@@ -8,7 +8,8 @@ enum State {
     InsertValues,
     InsertValuesStarted,
     JoinOn,
-    Offset
+    Offset,
+    Between
 }
 
 pub struct SqlSanitizer {
@@ -36,10 +37,12 @@ impl SqlSanitizer {
                 Token::Keyword(Keyword::Values) => state = State::InsertValues,
                 Token::Keyword(Keyword::On) => state = State::JoinOn,
                 Token::Keyword(Keyword::Offset) => state = State::Offset,
+                Token::Keyword(Keyword::Between) => state = State::Between,
+                Token::Keyword(Keyword::And) if state == State::Between => (),
                 Token::SingleQuoted(_) | Token::DoubleQuoted(_) | Token::Numeric(_) => {
                     match state {
-                        State::ComparisonOperator | State::Offset => {
-                            // We're after a comparison operator or offset, so insert placeholder.
+                        State::ComparisonOperator | State::Offset | State::Between => {
+                            // We're after a comparison operator, offset or between/and, so insert placeholder.
                             self.placeholder(pos);
                         },
                         State::ComparisonScopeStarted => {
@@ -121,6 +124,22 @@ mod tests {
         assert_eq!(
             sanitize_string("SELECT `table`.* FROM `table` LIMIT 10 OFFSET 5;".to_string()),
             "SELECT `table`.* FROM `table` LIMIT 10 OFFSET ?;"
+        );
+    }
+
+    #[test]
+    fn test_select_and_quoted() {
+        assert_eq!(
+            sanitize_string("SELECT \"table\".* FROM \"table\" WHERE \"field1\" = 1 AND \"field2\" = 'something';".to_string()),
+            "SELECT \"table\".* FROM \"table\" WHERE \"field1\" = ? AND \"field2\" = ?;"
+        );
+    }
+
+    #[test]
+    fn test_select_between_and() {
+        assert_eq!(
+            sanitize_string("SELECT `table`.* FROM `table` WHERE `field` BETWEEN 5 AND 10;".to_string()),
+            "SELECT `table`.* FROM `table` WHERE `field` BETWEEN ? AND ?;"
         );
     }
 
