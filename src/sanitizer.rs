@@ -139,6 +139,14 @@ mod tests {
     }
 
     #[test]
+    fn test_select_where_or_and_operators() {
+        assert_eq!(
+            sanitize_string("SELECT `posts`.* FROM `posts` WHERE (created_at >= '2016-01-10 13:34:46.647328' OR updated_at >= '2016-01-10 13:34:46.647328')".to_string()),
+            "SELECT `posts`.* FROM `posts` WHERE (created_at >= ? OR updated_at >= ?)"
+        );
+    }
+
+    #[test]
     fn test_select_in() {
         assert_eq!(
             sanitize_string("SELECT `table`.* FROM `table` WHERE `id` IN (1, 2, 3) LIMIT 1;".to_string()),
