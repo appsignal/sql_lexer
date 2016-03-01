@@ -7,7 +7,8 @@ enum State {
     ComparisonScopeStarted,
     InsertValues,
     InsertValuesStarted,
-    JoinOn
+    JoinOn,
+    Offset
 }
 
 pub struct SqlSanitizer {
@@ -34,10 +35,11 @@ impl SqlSanitizer {
                 Token::Operator(_) if state != State::JoinOn => state = State::ComparisonOperator,
                 Token::Keyword(Keyword::Values) => state = State::InsertValues,
                 Token::Keyword(Keyword::On) => state = State::JoinOn,
+                Token::Keyword(Keyword::Offset) => state = State::Offset,
                 Token::SingleQuoted(_) | Token::DoubleQuoted(_) | Token::Numeric(_) => {
                     match state {
-                        State::ComparisonOperator => {
-                            // We're after a comparison operator, so insert placeholder.
+                        State::ComparisonOperator | State::Offset => {
+                            // We're after a comparison operator or offset, so insert placeholder.
                             self.placeholder(pos);
                         },
                         State::ComparisonScopeStarted => {
@@ -111,6 +113,14 @@ mod tests {
         assert_eq!(
             sanitize_string("SELECT `table`.* FROM `table` WHERE `id` = 1 LIMIT 1;".to_string()),
             "SELECT `table`.* FROM `table` WHERE `id` = ? LIMIT 1;"
+        );
+    }
+
+    #[test]
+    fn test_select_limit_and_offset() {
+        assert_eq!(
+            sanitize_string("SELECT `table`.* FROM `table` LIMIT 10 OFFSET 5;".to_string()),
+            "SELECT `table`.* FROM `table` LIMIT 10 OFFSET ?;"
         );
     }
 

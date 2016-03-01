@@ -22,6 +22,8 @@ pub enum Keyword {
     Inner,  // INNER
     Join,   // JOIN
     On,     // ON
+    Limit,  // LIMIT
+    Offset, // OFFSET
     Other(BufferPosition)
 }
 
