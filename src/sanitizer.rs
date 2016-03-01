@@ -32,12 +32,18 @@ impl SqlSanitizer {
             }
 
             match self.sql.tokens[pos] {
+                // Determine if we want to change or keep state
                 Token::Operator(_) if state != State::JoinOn => state = State::ComparisonOperator,
                 Token::Keyword(Keyword::Values) => state = State::InsertValues,
                 Token::Keyword(Keyword::On) => state = State::JoinOn,
                 Token::Keyword(Keyword::Offset) => state = State::Offset,
                 Token::Keyword(Keyword::Between) => state = State::Between,
                 Token::Keyword(Keyword::And) if state == State::Between => (),
+                Token::ParentheseOpen if state == State::ComparisonOperator => state = State::ComparisonScopeStarted,
+                Token::ParentheseOpen if state == State::InsertValues => (),
+                Token::Comma if state == State::InsertValues => (),
+                Token::Dot if state == State::JoinOn => (),
+                // This is content we might want to sanitize
                 Token::SingleQuoted(_) | Token::DoubleQuoted(_) | Token::Numeric(_) => {
                     match state {
                         State::ComparisonOperator | State::Offset | State::Between => {
@@ -66,11 +72,9 @@ impl SqlSanitizer {
                         _ => ()
                     }
                 },
-                Token::ParentheseOpen if state == State::ComparisonOperator => state = State::ComparisonScopeStarted,
-                Token::ParentheseOpen if state == State::InsertValues => (),
-                Token::Comma if state == State::InsertValues => (), // If this is a , in a values block keep state
-                Token::Dot if state == State::JoinOn => (), // If this is a . in a on segment keep state
+                // Spaces don't influence the state
                 Token::Space => (),
+                // Reset state to default if there were no matches
                 _ => state = State::Default
             }
 
