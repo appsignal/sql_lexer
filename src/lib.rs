@@ -9,45 +9,71 @@ mod writer;
 
 #[derive(Debug,PartialEq)]
 pub enum Keyword {
-    Select,
-    From,
-    Where,
-    And,
-    In,
-    Update,
-    Set,
-    Insert,
-    Into,
-    Values,
-    Inner,
-    Join,
-    On,
+    Select, // SELECT
+    From,   // FROM
+    Where,  // WHERE
+    And,    // AND
+    Or,     // OR
+    Update, // UPDATE
+    Set,    // SET
+    Insert, // INSERT
+    Into,   // INTO
+    Values, // VALUES
+    Inner,  // INNER
+    Join,   // JOIN
+    On,     // ON
     Other(BufferPosition)
 }
 
 #[derive(Debug,PartialEq)]
 pub enum Operator {
-    Dot,
-    Comma,
-    Multiply,
-    ParentheseOpen,
-    ParentheseClose,
-    Colon,
-    Comparison(ComparisonOperator)
+    Arithmetic(ArithmeticOperator),
+    Logical(LogicalOperator),
+    Comparison(ComparisonOperator),
+    Bitwise(BitwiseOperator)
+}
+
+#[derive(Debug,PartialEq)]
+pub enum ArithmeticOperator {
+    Multiply, // *
+    Divide,   // /
+    Modulo,   // %
+    Plus,     // +
+    Minus     // -
+}
+
+#[derive(Debug,PartialEq)]
+pub enum LogicalOperator {
+    In,    // IN
+    Not,   // NOT
+    Like,  // LIKE
+    Rlike, // RLIKE
+    Glob,  // GLOB
+    Match, // MATCH
+    Regexp // REGEXP
 }
 
 #[derive(Debug,PartialEq)]
 pub enum ComparisonOperator {
-    Equal,
-    NullSafeEqual,
-    GreaterThanOrEqual,
-    LessThanOrEqual,
-    EqualOrGreaterThan,
-    EqualOrLessThan,
-    EqualWithArrows,
-    NotEqual,
-    GreaterThan,
-    LessThan
+    Equal,              // =
+    Equal2,             // ==
+    NullSafeEqual,      // <=>
+    GreaterThanOrEqual, // =>
+    LessThanOrEqual,    // <=
+    EqualOrGreaterThan, // =>
+    EqualOrLessThan,    // <=
+    EqualWithArrows,    // <>
+    NotEqual,           // !=
+    GreaterThan,        // >
+    LessThan            // <
+}
+
+#[derive(Debug,PartialEq)]
+pub enum BitwiseOperator {
+    LeftShift,  // <<
+    RightShift, // >>
+    And,        // &
+    Or          // |
 }
 
 #[derive(Debug,PartialEq)]
@@ -68,15 +94,21 @@ impl BufferPosition {
 
 #[derive(Debug,PartialEq)]
 pub enum Token {
-    Keyword(Keyword),
     Operator(Operator),
+    Keyword(Keyword),
+    Backticked(BufferPosition),
     DoubleQuoted(BufferPosition),
     SingleQuoted(BufferPosition),
     Numeric(BufferPosition),
-    Backticked(BufferPosition),
     Space,
     Newline,
-    Terminator,
+    Dot,
+    Comma,
+    Wildcard,
+    ParentheseOpen,
+    ParentheseClose,
+    Colon,
+    Semicolon,
     Placeholder,
     NumberedPlaceholder(BufferPosition)
 }
@@ -138,7 +170,7 @@ mod tests {
         let expected = vec![
             Token::Keyword(Keyword::Select),
             Token::Space,
-            Token::Operator(Operator::Multiply),
+            Token::Wildcard,
             Token::Space,
             Token::Keyword(Keyword::From),
             Token::Space,
@@ -163,7 +195,7 @@ mod tests {
         let expected = vec![
             Token::Keyword(Keyword::Select),
             Token::Space,
-            Token::Operator(Operator::Multiply),
+            Token::Wildcard,
             Token::Space,
             Token::Keyword(Keyword::From),
             Token::Space,
@@ -176,7 +208,7 @@ mod tests {
             Token::Operator(Operator::Comparison(ComparisonOperator::Equal)),
             Token::Space,
             Token::Placeholder,
-            Token::Terminator
+            Token::Semicolon
         ];
 
         assert_eq!(sql.tokens, expected);

@@ -1,7 +1,15 @@
-use super::{Sql,Operator,ComparisonOperator,BufferPosition,Token,Keyword};
+use super::{Sql,Operator,ArithmeticOperator,BitwiseOperator,ComparisonOperator,LogicalOperator,BufferPosition,Token,Keyword};
+
+#[derive(Clone,PartialEq)]
+enum State {
+    Default,
+    PastSelect,
+    PastFrom
+}
 
 #[derive(Clone)]
 pub struct SqlLexer {
+    state: State,
     buf: String,
     len: usize,
     pos: usize
@@ -11,6 +19,7 @@ impl SqlLexer {
     pub fn new(buf: String) -> SqlLexer {
         let len = buf.len();
         SqlLexer {
+            state: State::Default,
             buf: buf,
             len: len,
             pos: 0
@@ -57,71 +66,28 @@ impl SqlLexer {
             }
 
             let token = match self.buf.char_at(self.pos) {
+                // Back quoted
                 '`' => {
                     let start = self.pos + 1;
                     let end = self.find_until(|c| c == '`');
                     self.pos = end + 1;
                     Token::Backticked(BufferPosition::new(start, end))
                 },
+                // Single quoted
                 '\'' => {
                     let start = self.pos + 1;
                     let end = self.find_until_delimiter_with_possible_escaping('\'');
                     self.pos = end + 1;
                     Token::SingleQuoted(BufferPosition::new(start, end))
                 },
+                // Double quoted
                 '"' => {
                     let start = self.pos + 1;
                     let end = self.find_until_delimiter_with_possible_escaping('"');
                     self.pos = end + 1;
                     Token::DoubleQuoted(BufferPosition::new(start, end))
                 },
-                '.' => {
-                    self.pos += 1;
-                    Token::Operator(Operator::Dot)
-                },
-                ',' => {
-                    self.pos += 1;
-                    Token::Operator(Operator::Comma)
-                },
-                '(' => {
-                    self.pos += 1;
-                    Token::Operator(Operator::ParentheseOpen)
-                },
-                ')' => {
-                    self.pos += 1;
-                    Token::Operator(Operator::ParentheseClose)
-                },
-                ':' => {
-                    self.pos += 1;
-                    Token::Operator(Operator::Colon)
-                },
-                '*' => {
-                    self.pos += 1;
-                    Token::Operator(Operator::Multiply)
-                },
-                '=' | '!' | '>' | '<' => {
-                    let start = self.pos;
-                    let end = self.find_until(|c| {
-                        match c {
-                            '=' | '!' | '>' | '<' => false,
-                            _ => true
-                        }
-                    });
-                    self.pos = end;
-                    match &self.buf[start..end] {
-                        "<=>" => Token::Operator(Operator::Comparison(ComparisonOperator::NullSafeEqual)),
-                        ">=" => Token::Operator(Operator::Comparison(ComparisonOperator::GreaterThanOrEqual)),
-                        "<=" => Token::Operator(Operator::Comparison(ComparisonOperator::LessThanOrEqual)),
-                        "=>" => Token::Operator(Operator::Comparison(ComparisonOperator::EqualOrGreaterThan)),
-                        "=<" => Token::Operator(Operator::Comparison(ComparisonOperator::EqualOrLessThan)),
-                        "<>" => Token::Operator(Operator::Comparison(ComparisonOperator::EqualWithArrows)),
-                        "!=" => Token::Operator(Operator::Comparison(ComparisonOperator::NotEqual)),
-                        "=" => Token::Operator(Operator::Comparison(ComparisonOperator::Equal)),
-                        ">" => Token::Operator(Operator::Comparison(ComparisonOperator::GreaterThan)),
-                        "<" => Token::Operator(Operator::Comparison(ComparisonOperator::LessThan)),
-                        _ => break
-                    }
-                },
+                // Generic tokens
                 ' ' => {
                     self.pos += 1;
                     Token::Space
@@ -130,9 +96,29 @@ impl SqlLexer {
                     self.pos += 1;
                     Token::Newline
                 },
+                '.' => {
+                    self.pos += 1;
+                    Token::Dot
+                },
+                ',' => {
+                    self.pos += 1;
+                    Token::Comma
+                },
+                '(' => {
+                    self.pos += 1;
+                    Token::ParentheseOpen
+                },
+                ')' => {
+                    self.pos += 1;
+                    Token::ParentheseClose
+                },
+                ':' => {
+                    self.pos += 1;
+                    Token::Colon
+                },
                 ';' => {
                     self.pos += 1;
-                    Token::Terminator
+                    Token::Semicolon
                 },
                 '?' => {
                     self.pos += 1;
@@ -144,6 +130,62 @@ impl SqlLexer {
                     self.pos = end;
                     Token::NumberedPlaceholder(BufferPosition::new(start, end))
                 },
+                // Arithmetic operators
+                '*' => {
+                    self.pos += 1;
+                    match self.state {
+                        State::PastSelect => Token::Wildcard,
+                        _ => Token::Operator(Operator::Arithmetic(ArithmeticOperator::Multiply))
+                    }
+                },
+                '/' => {
+                    self.pos += 1;
+                    Token::Operator(Operator::Arithmetic(ArithmeticOperator::Divide))
+                },
+                '%' => {
+                    self.pos += 1;
+                    Token::Operator(Operator::Arithmetic(ArithmeticOperator::Modulo))
+                },
+                '+' => {
+                    self.pos += 1;
+                    Token::Operator(Operator::Arithmetic(ArithmeticOperator::Plus))
+                },
+                '-' => {
+                    self.pos += 1;
+                    Token::Operator(Operator::Arithmetic(ArithmeticOperator::Minus))
+                },
+                // Comparison and bitwise operators
+                '=' | '!' | '>' | '<' | '&' | '|' => {
+                    let start = self.pos;
+                    let end = self.find_until(|c| {
+                        match c {
+                            '=' | '!' | '>' | '<' => false,
+                            _ => true
+                        }
+                    });
+                    self.pos = end;
+                    match &self.buf[start..end] {
+                        // Comparison
+                        "<=>" => Token::Operator(Operator::Comparison(ComparisonOperator::NullSafeEqual)),
+                        ">=" => Token::Operator(Operator::Comparison(ComparisonOperator::GreaterThanOrEqual)),
+                        "<=" => Token::Operator(Operator::Comparison(ComparisonOperator::LessThanOrEqual)),
+                        "=>" => Token::Operator(Operator::Comparison(ComparisonOperator::EqualOrGreaterThan)),
+                        "=<" => Token::Operator(Operator::Comparison(ComparisonOperator::EqualOrLessThan)),
+                        "<>" => Token::Operator(Operator::Comparison(ComparisonOperator::EqualWithArrows)),
+                        "!=" => Token::Operator(Operator::Comparison(ComparisonOperator::NotEqual)),
+                        "==" => Token::Operator(Operator::Comparison(ComparisonOperator::Equal2)),
+                        "=" => Token::Operator(Operator::Comparison(ComparisonOperator::Equal)),
+                        ">" => Token::Operator(Operator::Comparison(ComparisonOperator::GreaterThan)),
+                        "<" => Token::Operator(Operator::Comparison(ComparisonOperator::LessThan)),
+                        // Bitwise
+                        "<<" => Token::Operator(Operator::Bitwise(BitwiseOperator::LeftShift)),
+                        ">>" => Token::Operator(Operator::Bitwise(BitwiseOperator::RightShift)),
+                        "&" => Token::Operator(Operator::Bitwise(BitwiseOperator::And)),
+                        "|" => Token::Operator(Operator::Bitwise(BitwiseOperator::Or)),
+                        _ => break
+                    }
+                },
+                // Logical operators and keywords
                 c if c.is_alphabetic() => {
                     let start = self.pos;
                     let end = self.find_until(|c| {
@@ -156,40 +198,40 @@ impl SqlLexer {
                         }
                     });
                     self.pos = end;
-                    let keyword: Option<Keyword> = match &self.buf[start..end] {
-                        "SELECT" => Some(Keyword::Select),
-                        "select" => Some(Keyword::Select),
-                        "FROM" => Some(Keyword::From),
-                        "from" => Some(Keyword::From),
-                        "WHERE" => Some(Keyword::Where),
-                        "where" => Some(Keyword::Where),
-                        "AND" => Some(Keyword::And),
-                        "and" => Some(Keyword::And),
-                        "IN" => Some(Keyword::In),
-                        "in" => Some(Keyword::In),
-                        "UPDATE" => Some(Keyword::Update),
-                        "update" => Some(Keyword::Update),
-                        "SET" => Some(Keyword::Set),
-                        "set" => Some(Keyword::Set),
-                        "INSERT" => Some(Keyword::Insert),
-                        "insert" => Some(Keyword::Insert),
-                        "INTO" => Some(Keyword::Into),
-                        "into" => Some(Keyword::Into),
-                        "VALUES" => Some(Keyword::Values),
-                        "values" => Some(Keyword::Values),
-                        "INNER" => Some(Keyword::Inner),
-                        "inner" => Some(Keyword::Inner),
-                        "JOIN" => Some(Keyword::Join),
-                        "join" => Some(Keyword::Join),
-                        "ON" => Some(Keyword::On),
-                        "on" => Some(Keyword::On),
-                        _ => None
-                    };
-                    match keyword {
-                        Some(k) => Token::Keyword(k),
-                        None => Token::Keyword(Keyword::Other(BufferPosition::new(start, end)))
+                    match &self.buf[start..end] {
+                        // Keywords
+                        "SELECT" | "select" => {
+                            self.state = State::PastSelect;
+                            Token::Keyword(Keyword::Select)
+                        },
+                        "FROM" | "from"=> {
+                            self.state = State::PastFrom;
+                            Token::Keyword(Keyword::From)
+                        },
+                        "WHERE" | "where" => Token::Keyword(Keyword::Where),
+                        "AND" | "and" => Token::Keyword(Keyword::And),
+                        "OR" | "or" => Token::Keyword(Keyword::Or),
+                        "UPDATE" | "update" => Token::Keyword(Keyword::Update),
+                        "SET" | "set" => Token::Keyword(Keyword::Set),
+                        "INSERT" | "insert" => Token::Keyword(Keyword::Insert),
+                        "INTO" | "into" => Token::Keyword(Keyword::Into),
+                        "VALUES" | "values" => Token::Keyword(Keyword::Values),
+                        "INNER" | "inner" => Token::Keyword(Keyword::Inner),
+                        "JOIN" | "join" => Token::Keyword(Keyword::Join),
+                        "ON" | "on" => Token::Keyword(Keyword::On),
+                        // Logical operators
+                        "IN" | "in" => Token::Operator(Operator::Logical(LogicalOperator::In)),
+                        "NOT" | "not" => Token::Operator(Operator::Logical(LogicalOperator::Not)),
+                        "LIKE" | "like" => Token::Operator(Operator::Logical(LogicalOperator::Like)),
+                        "RLIKE" | "rlike" => Token::Operator(Operator::Logical(LogicalOperator::Rlike)),
+                        "GLOB" | "glob" => Token::Operator(Operator::Logical(LogicalOperator::Glob)),
+                        "MATCH" | "match" => Token::Operator(Operator::Logical(LogicalOperator::Match)),
+                        "REGEXP" | "regexp" => Token::Operator(Operator::Logical(LogicalOperator::Regexp)),
+                        // Other keyword
+                        _ => Token::Keyword(Keyword::Other(BufferPosition::new(start, end)))
                     }
                 },
+                // Numeric
                 c if c.is_numeric() => {
                     let start = self.pos;
                     let end = self.find_until(|c| {
@@ -202,7 +244,10 @@ impl SqlLexer {
                     self.pos = end;
                     Token::Numeric(BufferPosition::new(start, end))
                 },
+                // Unknown
                 _ => break
+
+
             };
 
             tokens.push(token);
@@ -218,7 +263,7 @@ impl SqlLexer {
 #[cfg(test)]
 mod tests {
     use super::SqlLexer;
-    use super::super::{Token,Operator,ComparisonOperator,BufferPosition,Keyword};
+    use super::super::{Token,Operator,ArithmeticOperator,BitwiseOperator,ComparisonOperator,LogicalOperator,BufferPosition,Keyword};
 
     #[test]
     fn test_single_quoted_query() {
@@ -229,8 +274,8 @@ mod tests {
             Token::Keyword(Keyword::Select),
             Token::Space,
             Token::Backticked(BufferPosition::new(8, 13)),
-            Token::Operator(Operator::Dot),
-            Token::Operator(Operator::Multiply),
+            Token::Dot,
+            Token::Wildcard,
             Token::Space,
             Token::Keyword(Keyword::From),
             Token::Space,
@@ -251,7 +296,7 @@ mod tests {
             Token::Operator(Operator::Comparison(ComparisonOperator::Equal)),
             Token::Space,
             Token::SingleQuoted(BufferPosition::new(67, 76)),
-            Token::Terminator
+            Token::Semicolon
         ];
 
         assert_eq!(lexer.lex().tokens, expected);
@@ -266,8 +311,8 @@ mod tests {
             Token::Keyword(Keyword::Select),
             Token::Space,
             Token::DoubleQuoted(BufferPosition::new(8, 13)),
-            Token::Operator(Operator::Dot),
-            Token::Operator(Operator::Multiply),
+            Token::Dot,
+            Token::Wildcard,
             Token::Space,
             Token::Keyword(Keyword::From),
             Token::Space,
@@ -288,7 +333,7 @@ mod tests {
             Token::Operator(Operator::Comparison(ComparisonOperator::Equal)),
             Token::Space,
             Token::Numeric(BufferPosition::new(61, 65)),
-            Token::Terminator
+            Token::Semicolon
         ];
 
         assert_eq!(lexer.lex().tokens, expected);
@@ -302,8 +347,8 @@ mod tests {
         let expected = vec![
             Token::Keyword(Keyword::Select),
             Token::DoubleQuoted(BufferPosition::new(7, 12)),
-            Token::Operator(Operator::Dot),
-            Token::Operator(Operator::Multiply),
+            Token::Dot,
+            Token::Wildcard,
             Token::Keyword(Keyword::From),
             Token::DoubleQuoted(BufferPosition::new(20, 25)),
             Token::Keyword(Keyword::Where),
@@ -314,7 +359,7 @@ mod tests {
             Token::DoubleQuoted(BufferPosition::new(42, 48)),
             Token::Operator(Operator::Comparison(ComparisonOperator::Equal)),
             Token::Numeric(BufferPosition::new(50, 54)),
-            Token::Terminator
+            Token::Semicolon
         ];
 
         assert_eq!(lexer.lex().tokens, expected);
@@ -328,7 +373,7 @@ mod tests {
         let expected = vec![
             Token::Keyword(Keyword::Select),
             Token::Space,
-            Token::Operator(Operator::Multiply),
+            Token::Wildcard,
             Token::Space,
             Token::Keyword(Keyword::From),
             Token::Space,
@@ -338,16 +383,94 @@ mod tests {
             Token::Space,
             Token::DoubleQuoted(BufferPosition::new(29, 31)),
             Token::Space,
-            Token::Keyword(Keyword::In),
+            Token::Operator(Operator::Logical(LogicalOperator::In)),
             Token::Space,
-            Token::Operator(Operator::ParentheseOpen),
+            Token::ParentheseOpen,
             Token::Numeric(BufferPosition::new(37, 38)),
-            Token::Operator(Operator::Comma),
+            Token::Comma,
             Token::Numeric(BufferPosition::new(39, 40)),
-            Token::Operator(Operator::Comma),
+            Token::Comma,
             Token::Numeric(BufferPosition::new(41, 42)),
-            Token::Operator(Operator::ParentheseClose),
-            Token::Terminator
+            Token::ParentheseClose,
+            Token::Semicolon
+        ];
+
+        assert_eq!(lexer.lex().tokens, expected);
+    }
+
+    #[test]
+    fn test_arithmetic_operators() {
+        // See if we properly distinguish between wildcard and multiplier
+        let sql = "SELECT * FROM WHERE * / % + -;".to_string();
+        let lexer = SqlLexer::new(sql);
+
+        let expected = vec![
+            Token::Keyword(Keyword::Select),
+            Token::Space,
+            Token::Wildcard,
+            Token::Space,
+            Token::Keyword(Keyword::From),
+            Token::Space,
+            Token::Keyword(Keyword::Where),
+            Token::Space,
+            Token::Operator(Operator::Arithmetic(ArithmeticOperator::Multiply)),
+            Token::Space,
+            Token::Operator(Operator::Arithmetic(ArithmeticOperator::Divide)),
+            Token::Space,
+            Token::Operator(Operator::Arithmetic(ArithmeticOperator::Modulo)),
+            Token::Space,
+            Token::Operator(Operator::Arithmetic(ArithmeticOperator::Plus)),
+            Token::Space,
+            Token::Operator(Operator::Arithmetic(ArithmeticOperator::Minus)),
+            Token::Semicolon
+        ];
+
+        assert_eq!(lexer.lex().tokens, expected);
+    }
+
+    #[test]
+    fn test_logical_operators() {
+        let sql = "IN NOT LIKE RLIKE GLOB MATCH REGEXP".to_string();
+        let lexer = SqlLexer::new(sql);
+
+        let expected = vec![
+            Token::Operator(Operator::Logical(LogicalOperator::In)),
+            Token::Space,
+            Token::Operator(Operator::Logical(LogicalOperator::Not)),
+            Token::Space,
+            Token::Operator(Operator::Logical(LogicalOperator::Like)),
+            Token::Space,
+            Token::Operator(Operator::Logical(LogicalOperator::Rlike)),
+            Token::Space,
+            Token::Operator(Operator::Logical(LogicalOperator::Glob)),
+            Token::Space,
+            Token::Operator(Operator::Logical(LogicalOperator::Match)),
+            Token::Space,
+            Token::Operator(Operator::Logical(LogicalOperator::Regexp)),
+        ];
+
+        assert_eq!(lexer.lex().tokens, expected);
+    }
+
+    #[test]
+    fn test_logical_operators_lowercase() {
+        let sql = "in not like rlike glob match regexp".to_string();
+        let lexer = SqlLexer::new(sql);
+
+        let expected = vec![
+            Token::Operator(Operator::Logical(LogicalOperator::In)),
+            Token::Space,
+            Token::Operator(Operator::Logical(LogicalOperator::Not)),
+            Token::Space,
+            Token::Operator(Operator::Logical(LogicalOperator::Like)),
+            Token::Space,
+            Token::Operator(Operator::Logical(LogicalOperator::Rlike)),
+            Token::Space,
+            Token::Operator(Operator::Logical(LogicalOperator::Glob)),
+            Token::Space,
+            Token::Operator(Operator::Logical(LogicalOperator::Match)),
+            Token::Space,
+            Token::Operator(Operator::Logical(LogicalOperator::Regexp)),
         ];
 
         assert_eq!(lexer.lex().tokens, expected);
@@ -355,10 +478,14 @@ mod tests {
 
     #[test]
     fn test_comparison_operators() {
-        let sql = "<=> >= <= => =< <> != = > <;".to_string();
+        let sql = "= == <=> >= <= => =< <> != > <;".to_string();
         let lexer = SqlLexer::new(sql);
 
         let expected = vec![
+            Token::Operator(Operator::Comparison(ComparisonOperator::Equal)),
+            Token::Space,
+            Token::Operator(Operator::Comparison(ComparisonOperator::Equal2)),
+            Token::Space,
             Token::Operator(Operator::Comparison(ComparisonOperator::NullSafeEqual)),
             Token::Space,
             Token::Operator(Operator::Comparison(ComparisonOperator::GreaterThanOrEqual)),
@@ -373,12 +500,29 @@ mod tests {
             Token::Space,
             Token::Operator(Operator::Comparison(ComparisonOperator::NotEqual)),
             Token::Space,
-            Token::Operator(Operator::Comparison(ComparisonOperator::Equal)),
-            Token::Space,
             Token::Operator(Operator::Comparison(ComparisonOperator::GreaterThan)),
             Token::Space,
             Token::Operator(Operator::Comparison(ComparisonOperator::LessThan)),
-            Token::Terminator
+            Token::Semicolon
+        ];
+
+        assert_eq!(lexer.lex().tokens, expected);
+    }
+
+    #[test]
+    fn test_bitwise_operators() {
+        let sql = "<< >> & |;".to_string();
+        let lexer = SqlLexer::new(sql);
+
+        let expected = vec![
+            Token::Operator(Operator::Bitwise(BitwiseOperator::LeftShift)),
+            Token::Space,
+            Token::Operator(Operator::Bitwise(BitwiseOperator::RightShift)),
+            Token::Space,
+            Token::Operator(Operator::Bitwise(BitwiseOperator::And)),
+            Token::Space,
+            Token::Operator(Operator::Bitwise(BitwiseOperator::Or)),
+            Token::Semicolon
         ];
 
         assert_eq!(lexer.lex().tokens, expected);
@@ -386,7 +530,7 @@ mod tests {
 
     #[test]
     fn test_known_keywords() {
-        let sql = "SELECT FROM WHERE AND IN UPDATE SET INSERT INTO VALUES INNER JOIN ON;".to_string();
+        let sql = "SELECT FROM WHERE AND OR UPDATE SET INSERT INTO VALUES INNER JOIN ON;".to_string();
         let lexer = SqlLexer::new(sql);
 
         let expected = vec![
@@ -398,7 +542,7 @@ mod tests {
             Token::Space,
             Token::Keyword(Keyword::And),
             Token::Space,
-            Token::Keyword(Keyword::In),
+            Token::Keyword(Keyword::Or),
             Token::Space,
             Token::Keyword(Keyword::Update),
             Token::Space,
@@ -415,7 +559,7 @@ mod tests {
             Token::Keyword(Keyword::Join),
             Token::Space,
             Token::Keyword(Keyword::On),
-            Token::Terminator
+            Token::Semicolon
         ];
 
         assert_eq!(lexer.lex().tokens, expected);
@@ -423,7 +567,7 @@ mod tests {
 
     #[test]
     fn test_known_keywords_lowercase() {
-        let sql = "select from where and in update set insert into values inner join on;".to_string();
+        let sql = "select from where and or update set insert into values inner join on;".to_string();
         let lexer = SqlLexer::new(sql);
 
         let expected = vec![
@@ -435,7 +579,7 @@ mod tests {
             Token::Space,
             Token::Keyword(Keyword::And),
             Token::Space,
-            Token::Keyword(Keyword::In),
+            Token::Keyword(Keyword::Or),
             Token::Space,
             Token::Keyword(Keyword::Update),
             Token::Space,
@@ -452,7 +596,7 @@ mod tests {
             Token::Keyword(Keyword::Join),
             Token::Space,
             Token::Keyword(Keyword::On),
-            Token::Terminator
+            Token::Semicolon
         ];
 
         assert_eq!(lexer.lex().tokens, expected);
@@ -467,7 +611,7 @@ mod tests {
             Token::Keyword(Keyword::Other(BufferPosition::new(0, 7))),
             Token::Space,
             Token::Keyword(Keyword::From),
-            Token::Terminator
+            Token::Semicolon
         ];
 
         assert_eq!(lexer.lex().tokens, expected);
@@ -483,7 +627,7 @@ mod tests {
             Token::Keyword(Keyword::From),
             Token::Space,
             Token::SingleQuoted(BufferPosition::new(16, 25)),
-            Token::Terminator
+            Token::Semicolon
         ];
 
         assert_eq!(lexer.lex().tokens, expected);
@@ -499,7 +643,7 @@ mod tests {
             Token::Keyword(Keyword::From),
             Token::Space,
             Token::DoubleQuoted(BufferPosition::new(16, 25)),
-            Token::Terminator
+            Token::Semicolon
         ];
 
         assert_eq!(lexer.lex().tokens, expected);
@@ -517,7 +661,7 @@ mod tests {
             Token::NumberedPlaceholder(BufferPosition::new(5, 7)),
             Token::Space,
             Token::NumberedPlaceholder(BufferPosition::new(8, 11)),
-            Token::Terminator
+            Token::Semicolon
         ];
 
         assert_eq!(lexer.lex().tokens, expected);

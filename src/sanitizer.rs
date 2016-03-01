@@ -1,11 +1,10 @@
-use super::{Sql,Token,Keyword,Operator};
+use super::{Sql,Token,Keyword};
 
 #[derive(Debug,PartialEq)]
 enum State {
     Default,
     ComparisonOperator,
-    In,
-    InStarted,
+    ComparisonScopeStarted,
     InsertValues,
     InsertValuesStarted,
     JoinOn
@@ -32,8 +31,7 @@ impl SqlSanitizer {
             }
 
             match self.sql.tokens[pos] {
-                Token::Operator(Operator::Comparison(_)) if state != State::JoinOn => state = State::ComparisonOperator,
-                Token::Keyword(Keyword::In) => state = State::In,
+                Token::Operator(_) if state != State::JoinOn => state = State::ComparisonOperator,
                 Token::Keyword(Keyword::Values) => state = State::InsertValues,
                 Token::Keyword(Keyword::On) => state = State::JoinOn,
                 Token::SingleQuoted(_) | Token::DoubleQuoted(_) | Token::Numeric(_) => {
@@ -42,7 +40,7 @@ impl SqlSanitizer {
                             // We're after a comparison operator, so insert placeholder.
                             self.placeholder(pos);
                         },
-                        State::InStarted => {
+                        State::ComparisonScopeStarted => {
                             // We're in an IN () and it starts with content. Remove everything until
                             // the closing parenthese and put one placeholder in between.
                             let start_pos = pos;
@@ -51,7 +49,7 @@ impl SqlSanitizer {
                                     break
                                 }
                                 match self.sql.tokens[pos] {
-                                    Token::Operator(Operator::ParentheseClose) => break,
+                                    Token::ParentheseClose => break,
                                     _ => self.remove(pos)
                                 }
                             }
@@ -64,10 +62,10 @@ impl SqlSanitizer {
                         _ => ()
                     }
                 },
-                Token::Operator(Operator::ParentheseOpen) if state == State::In => state = State::InStarted,
-                Token::Operator(Operator::ParentheseOpen) if state == State::InsertValues => state = State::InsertValuesStarted,
-                Token::Operator(Operator::Comma) if state == State::InsertValuesStarted => (), // If this is a , in a values block keep state
-                Token::Operator(Operator::Dot) if state == State::JoinOn => (), // If this is a . in a on segment keep state
+                Token::ParentheseOpen if state == State::ComparisonOperator => state = State::ComparisonScopeStarted,
+                Token::ParentheseOpen if state == State::InsertValues => state = State::InsertValuesStarted,
+                Token::Comma if state == State::InsertValuesStarted => (), // If this is a , in a values block keep state
+                Token::Dot if state == State::JoinOn => (), // If this is a . in a on segment keep state
                 Token::Space => (),
                 _ => state = State::Default
             }

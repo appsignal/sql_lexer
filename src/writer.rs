@@ -1,4 +1,4 @@
-use super::{Keyword,Token,Operator,ComparisonOperator,Sql};
+use super::{Keyword,Token,Operator,ArithmeticOperator,ComparisonOperator,LogicalOperator,BitwiseOperator,Sql};
 
 pub struct SqlWriter {
     pub sql: Sql
@@ -16,29 +16,23 @@ impl SqlWriter {
 
         for token in self.sql.tokens.iter() {
             match token {
-                &Token::Keyword(Keyword::Select) => out.push_str("SELECT"),
-                &Token::Keyword(Keyword::From) => out.push_str("FROM"),
-                &Token::Keyword(Keyword::Where) => out.push_str("WHERE"),
-                &Token::Keyword(Keyword::And) => out.push_str("AND"),
-                &Token::Keyword(Keyword::In) => out.push_str("IN"),
-                &Token::Keyword(Keyword::Update) => out.push_str("UPDATE"),
-                &Token::Keyword(Keyword::Set) => out.push_str("SET"),
-                &Token::Keyword(Keyword::Insert) => out.push_str("INSERT"),
-                &Token::Keyword(Keyword::Into) => out.push_str("INTO"),
-                &Token::Keyword(Keyword::Values) => out.push_str("VALUES"),
-                &Token::Keyword(Keyword::Inner) => out.push_str("INNER"),
-                &Token::Keyword(Keyword::Join) => out.push_str("JOIN"),
-                &Token::Keyword(Keyword::On) => out.push_str("ON"),
-                &Token::Keyword(Keyword::Other(ref pos)) => {
-                    out.push_str(self.sql.buffer_content(pos));
-                },
-                &Token::Operator(Operator::Dot) => out.push('.'),
-                &Token::Operator(Operator::Comma) => out.push(','),
-                &Token::Operator(Operator::Multiply) => out.push('*'),
-                &Token::Operator(Operator::ParentheseOpen) => out.push('('),
-                &Token::Operator(Operator::ParentheseClose) => out.push(')'),
-                &Token::Operator(Operator::Colon) => out.push(':'),
+                // Arithmetic operator
+                &Token::Operator(Operator::Arithmetic(ArithmeticOperator::Multiply)) => out.push('*'),
+                &Token::Operator(Operator::Arithmetic(ArithmeticOperator::Divide)) => out.push('/'),
+                &Token::Operator(Operator::Arithmetic(ArithmeticOperator::Modulo)) => out.push('%'),
+                &Token::Operator(Operator::Arithmetic(ArithmeticOperator::Plus)) => out.push('+'),
+                &Token::Operator(Operator::Arithmetic(ArithmeticOperator::Minus)) => out.push('-'),
+                // Logical operator
+                &Token::Operator(Operator::Logical(LogicalOperator::In)) => out.push_str("IN"),
+                &Token::Operator(Operator::Logical(LogicalOperator::Not)) => out.push_str("NOT"),
+                &Token::Operator(Operator::Logical(LogicalOperator::Like)) => out.push_str("LIKE"),
+                &Token::Operator(Operator::Logical(LogicalOperator::Rlike)) => out.push_str("RLIKE"),
+                &Token::Operator(Operator::Logical(LogicalOperator::Glob)) => out.push_str("GLOB"),
+                &Token::Operator(Operator::Logical(LogicalOperator::Match)) => out.push_str("MATCH"),
+                &Token::Operator(Operator::Logical(LogicalOperator::Regexp)) => out.push_str("REGEXP"),
+                // Comparison operator
                 &Token::Operator(Operator::Comparison(ComparisonOperator::Equal)) => out.push('='),
+                &Token::Operator(Operator::Comparison(ComparisonOperator::Equal2)) => out.push_str("=="),
                 &Token::Operator(Operator::Comparison(ComparisonOperator::NullSafeEqual)) => out.push_str("<=>"),
                 &Token::Operator(Operator::Comparison(ComparisonOperator::GreaterThanOrEqual)) => out.push_str(">="),
                 &Token::Operator(Operator::Comparison(ComparisonOperator::LessThanOrEqual)) => out.push_str("<="),
@@ -48,31 +42,64 @@ impl SqlWriter {
                 &Token::Operator(Operator::Comparison(ComparisonOperator::NotEqual)) => out.push_str("!="),
                 &Token::Operator(Operator::Comparison(ComparisonOperator::GreaterThan)) => out.push('>'),
                 &Token::Operator(Operator::Comparison(ComparisonOperator::LessThan)) => out.push('<'),
-                &Token::DoubleQuoted(ref pos) => {
-                    out.push('"');
+                // Bitwise operator
+                &Token::Operator(Operator::Bitwise(BitwiseOperator::LeftShift)) => out.push_str("<<"),
+                &Token::Operator(Operator::Bitwise(BitwiseOperator::RightShift)) => out.push_str(">>"),
+                &Token::Operator(Operator::Bitwise(BitwiseOperator::And)) => out.push('&'),
+                &Token::Operator(Operator::Bitwise(BitwiseOperator::Or)) => out.push('|'),
+                // Keywords
+                &Token::Keyword(Keyword::Select) => out.push_str("SELECT"),
+                &Token::Keyword(Keyword::From) => out.push_str("FROM"),
+                &Token::Keyword(Keyword::Where) => out.push_str("WHERE"),
+                &Token::Keyword(Keyword::Update) => out.push_str("UPDATE"),
+                &Token::Keyword(Keyword::Set) => out.push_str("SET"),
+                &Token::Keyword(Keyword::Insert) => out.push_str("INSERT"),
+                &Token::Keyword(Keyword::Into) => out.push_str("INTO"),
+                &Token::Keyword(Keyword::Values) => out.push_str("VALUES"),
+                &Token::Keyword(Keyword::Inner) => out.push_str("INNER"),
+                &Token::Keyword(Keyword::Join) => out.push_str("JOIN"),
+                &Token::Keyword(Keyword::On) => out.push_str("ON"),
+                &Token::Keyword(Keyword::And) => out.push_str("AND"),
+                &Token::Keyword(Keyword::Or) => out.push_str("OR"),
+                &Token::Keyword(Keyword::Other(ref pos)) => {
                     out.push_str(self.sql.buffer_content(pos));
-                    out.push('"');
                 },
-                &Token::SingleQuoted(ref pos) => {
-                    out.push('\'');
-                    out.push_str(self.sql.buffer_content(pos));
-                    out.push('\'');
-                },
+                // Backticked
                 &Token::Backticked(ref pos) => {
                     out.push('`');
                     out.push_str(self.sql.buffer_content(pos));
                     out.push('`');
                 },
+                // Double quoted
+                &Token::DoubleQuoted(ref pos) => {
+                    out.push('"');
+                    out.push_str(self.sql.buffer_content(pos));
+                    out.push('"');
+                },
+                // Single quoted
+                &Token::SingleQuoted(ref pos) => {
+                    out.push('\'');
+                    out.push_str(self.sql.buffer_content(pos));
+                    out.push('\'');
+                },
+                // Numeric
                 &Token::Numeric(ref pos) => {
                     out.push_str(self.sql.buffer_content(pos));
                 },
+                // Generic tokens
                 &Token::Space => out.push(' '),
                 &Token::Newline => out.push('\n'),
+                &Token::Dot => out.push('.'),
+                &Token::Comma => out.push(','),
+                &Token::Wildcard => out.push('*'),
+                &Token::ParentheseOpen => out.push('('),
+                &Token::ParentheseClose => out.push(')'),
+                &Token::Colon => out.push(':'),
+                &Token::Semicolon => out.push(';'),
                 &Token::Placeholder => out.push('?'),
                 &Token::NumberedPlaceholder(ref pos) => {
                     out.push_str(self.sql.buffer_content(pos));
-                },
-                &Token::Terminator => out.push(';')
+                }
             }
         }
 
@@ -108,15 +135,39 @@ mod tests {
 
     #[test]
     fn test_write_keywords() {
-        let sql = "SELECT FROM WHERE AND IN UPDATE SET INSERT INTO VALUES INNER JOIN ON OTHER";
+        let sql = "SELECT FROM WHERE AND OR UPDATE SET INSERT INTO VALUES INNER JOIN ON OTHER";
         let written = helpers::lex_and_write(sql.to_string());
 
         assert_eq!(written, sql);
     }
 
     #[test]
-    fn test_write_operators() {
-        let sql = ". , * ( ) : <=> >= <= => => <> != = > <";
+    fn test_write_arithmetic_operators() {
+        let sql = "* / % + -";
+        let written = helpers::lex_and_write(sql.to_string());
+
+        assert_eq!(written, sql);
+    }
+
+    #[test]
+    fn test_write_logical_operators() {
+        let sql = "IN NOT LIKE RLIKE GLOB MATCH REGEXP";
+        let written = helpers::lex_and_write(sql.to_string());
+
+        assert_eq!(written, sql);
+    }
+
+    #[test]
+    fn test_write_comparison_operators() {
+        let sql = "= == <=> >= <= => => <> != > <";
+        let written = helpers::lex_and_write(sql.to_string());
+
+        assert_eq!(written, sql);
+    }
+
+    #[test]
+    fn test_write_bitwise_operators() {
+        let sql = "<< >> & |";
         let written = helpers::lex_and_write(sql.to_string());
 
         assert_eq!(written, sql);
