@@ -17,10 +17,10 @@ impl SqlLexer {
         }
     }
 
-    fn find_until_char(&self, character: char) -> usize {
+    fn find_until<F>(&self, at_end_function: F) -> usize where F: Fn(char) -> bool {
         let mut end = self.pos + 1;
         loop {
-            if end >= self.len || self.buf.char_at(end) == character {
+            if end >= self.len || at_end_function(self.buf.char_at(end)) {
                 break
             }
             end += 1;
@@ -28,7 +28,7 @@ impl SqlLexer {
         end
     }
 
-    fn find_until_char_with_possible_escaping(&self, character: char) -> usize {
+    fn find_until_delimiter_with_possible_escaping(&self, character: char) -> usize {
         let mut end = self.pos + 1;
         let mut escape_char_count = 0;
         loop {
@@ -48,21 +48,6 @@ impl SqlLexer {
         end
     }
 
-    fn find_numeric_end(&self) -> usize {
-        let mut end = self.pos + 1;
-        loop {
-            if end >= self.len {
-                break
-            }
-            match self.buf.char_at(end) {
-                '.' => end += 1,
-                c if c.is_numeric() => end += 1,
-                _ => break
-            }
-        }
-        end
-    }
-
     pub fn lex(mut self) -> Sql {
         let mut tokens = Vec::new();
 
@@ -74,19 +59,19 @@ impl SqlLexer {
             let token = match self.buf.char_at(self.pos) {
                 '`' => {
                     let start = self.pos + 1;
-                    let end = self.find_until_char('`');
+                    let end = self.find_until(|c| c == '`');
                     self.pos = end + 1;
                     Token::Backticked(BufferPosition::new(start, end))
                 },
                 '\'' => {
                     let start = self.pos + 1;
-                    let end = self.find_until_char_with_possible_escaping('\'');
+                    let end = self.find_until_delimiter_with_possible_escaping('\'');
                     self.pos = end + 1;
                     Token::SingleQuoted(BufferPosition::new(start, end))
                 },
                 '"' => {
                     let start = self.pos + 1;
-                    let end = self.find_until_char_with_possible_escaping('"');
+                    let end = self.find_until_delimiter_with_possible_escaping('"');
                     self.pos = end + 1;
                     Token::DoubleQuoted(BufferPosition::new(start, end))
                 },
@@ -116,7 +101,12 @@ impl SqlLexer {
                 },
                 '=' | '!' | '>' | '<' => {
                     let start = self.pos;
-                    let end = self.find_until_char(' ');
+                    let end = self.find_until(|c| {
+                        match c {
+                            '=' | '!' | '>' | '<' => false,
+                            _ => true
+                        }
+                    });
                     self.pos = end;
                     match &self.buf[start..end] {
                         "<=>" => Token::Operator(Operator::Comparison(ComparisonOperator::NullSafeEqual)),
@@ -150,13 +140,21 @@ impl SqlLexer {
                 },
                 '$' => {
                     let start = self.pos;
-                    let end = self.find_until_char(' ');
+                    let end = self.find_until(|c| !c.is_numeric() );
                     self.pos = end;
                     Token::NumberedPlaceholder(BufferPosition::new(start, end))
                 },
                 c if c.is_alphabetic() => {
                     let start = self.pos;
-                    let end = self.find_until_char(' ');
+                    let end = self.find_until(|c| {
+                        match c {
+                            '_' => false,
+                            '-' => false,
+                            c if c.is_alphabetic() => false,
+                            c if c.is_numeric() => false,
+                            _ => true
+                        }
+                    });
                     self.pos = end;
                     let keyword: Option<Keyword> = match &self.buf[start..end] {
                         "SELECT" => Some(Keyword::Select),
@@ -194,7 +192,13 @@ impl SqlLexer {
                 },
                 c if c.is_numeric() => {
                     let start = self.pos;
-                    let end = self.find_numeric_end();
+                    let end = self.find_until(|c| {
+                        match c {
+                            '.' => false,
+                            c if c.is_numeric() => false,
+                            _ => true
+                        }
+                    });
                     self.pos = end;
                     Token::Numeric(BufferPosition::new(start, end))
                 },
@@ -291,6 +295,32 @@ mod tests {
     }
 
     #[test]
+    fn test_double_quoted_and_numeric_query_no_whitespace() {
+        let sql = "SELECT\"table\".*FROM\"table\"WHERE\"id\"=18AND\"number\"=18.0;".to_string();
+        let lexer = SqlLexer::new(sql);
+
+        let expected = vec![
+            Token::Keyword(Keyword::Select),
+            Token::DoubleQuoted(BufferPosition::new(7, 12)),
+            Token::Operator(Operator::Dot),
+            Token::Operator(Operator::Multiply),
+            Token::Keyword(Keyword::From),
+            Token::DoubleQuoted(BufferPosition::new(20, 25)),
+            Token::Keyword(Keyword::Where),
+            Token::DoubleQuoted(BufferPosition::new(32, 34)),
+            Token::Operator(Operator::Comparison(ComparisonOperator::Equal)),
+            Token::Numeric(BufferPosition::new(36, 38)),
+            Token::Keyword(Keyword::And),
+            Token::DoubleQuoted(BufferPosition::new(42, 48)),
+            Token::Operator(Operator::Comparison(ComparisonOperator::Equal)),
+            Token::Numeric(BufferPosition::new(50, 54)),
+            Token::Terminator
+        ];
+
+        assert_eq!(lexer.lex().tokens, expected);
+    }
+
+    #[test]
     fn test_in_query() {
         let sql = "SELECT * FROM \"table\" WHERE \"id\" IN (1,2,3);".to_string();
         let lexer = SqlLexer::new(sql);
@@ -325,7 +355,7 @@ mod tests {
 
     #[test]
     fn test_comparison_operators() {
-        let sql = "<=> >= <= => =< <> != = > <".to_string();
+        let sql = "<=> >= <= => =< <> != = > <;".to_string();
         let lexer = SqlLexer::new(sql);
 
         let expected = vec![
@@ -347,7 +377,8 @@ mod tests {
             Token::Space,
             Token::Operator(Operator::Comparison(ComparisonOperator::GreaterThan)),
             Token::Space,
-            Token::Operator(Operator::Comparison(ComparisonOperator::LessThan))
+            Token::Operator(Operator::Comparison(ComparisonOperator::LessThan)),
+            Token::Terminator
         ];
 
         assert_eq!(lexer.lex().tokens, expected);
@@ -355,7 +386,7 @@ mod tests {
 
     #[test]
     fn test_known_keywords() {
-        let sql = "SELECT FROM WHERE AND IN UPDATE SET INSERT INTO VALUES INNER JOIN ON".to_string();
+        let sql = "SELECT FROM WHERE AND IN UPDATE SET INSERT INTO VALUES INNER JOIN ON;".to_string();
         let lexer = SqlLexer::new(sql);
 
         let expected = vec![
@@ -383,7 +414,8 @@ mod tests {
             Token::Space,
             Token::Keyword(Keyword::Join),
             Token::Space,
-            Token::Keyword(Keyword::On)
+            Token::Keyword(Keyword::On),
+            Token::Terminator
         ];
 
         assert_eq!(lexer.lex().tokens, expected);
@@ -391,7 +423,7 @@ mod tests {
 
     #[test]
     fn test_known_keywords_lowercase() {
-        let sql = "select from where and in update set insert into values inner join on".to_string();
+        let sql = "select from where and in update set insert into values inner join on;".to_string();
         let lexer = SqlLexer::new(sql);
 
         let expected = vec![
@@ -419,7 +451,8 @@ mod tests {
             Token::Space,
             Token::Keyword(Keyword::Join),
             Token::Space,
-            Token::Keyword(Keyword::On)
+            Token::Keyword(Keyword::On),
+            Token::Terminator
         ];
 
         assert_eq!(lexer.lex().tokens, expected);
@@ -427,13 +460,14 @@ mod tests {
 
     #[test]
     fn test_obscure_keyword() {
-        let sql = "OBSCURE FROM".to_string();
+        let sql = "OBSCURE FROM;".to_string();
         let lexer = SqlLexer::new(sql);
 
         let expected = vec![
             Token::Keyword(Keyword::Other(BufferPosition::new(0, 7))),
             Token::Space,
-            Token::Keyword(Keyword::From)
+            Token::Keyword(Keyword::From),
+            Token::Terminator
         ];
 
         assert_eq!(lexer.lex().tokens, expected);
@@ -473,7 +507,7 @@ mod tests {
 
     #[test]
     fn test_placeholders() {
-        let sql = "? $1 $2 $23".to_string();
+        let sql = "? $1 $2 $23;".to_string();
         let lexer = SqlLexer::new(sql);
         let expected = vec![
             Token::Placeholder,
@@ -482,7 +516,8 @@ mod tests {
             Token::Space,
             Token::NumberedPlaceholder(BufferPosition::new(5, 7)),
             Token::Space,
-            Token::NumberedPlaceholder(BufferPosition::new(8, 11))
+            Token::NumberedPlaceholder(BufferPosition::new(8, 11)),
+            Token::Terminator
         ];
 
         assert_eq!(lexer.lex().tokens, expected);

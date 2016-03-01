@@ -58,6 +58,7 @@ pub struct BufferPosition {
 
 impl BufferPosition {
     pub fn new(start: usize, end: usize) -> BufferPosition {
+        assert!(start < end);
         BufferPosition {
             start: start,
             end: end
