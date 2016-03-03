@@ -115,6 +115,14 @@ mod tests {
     }
 
     #[test]
+    fn test_select_table_name_no_quotes() {
+        assert_eq!(
+            sanitize_string("SELECT table.* FROM table WHERE id = 'secret' LIMIT 1;".to_string()),
+            "SELECT table.* FROM table WHERE id = ? LIMIT 1;"
+        );
+    }
+
+    #[test]
     fn test_select_where_numeric() {
         assert_eq!(
             sanitize_string("SELECT `table`.* FROM `table` WHERE `id` = 1 LIMIT 1;".to_string()),
