@@ -72,6 +72,15 @@ impl SqlSanitizer {
                         _ => ()
                     }
                 },
+                // Strip comments
+                Token::Comment(_) => {
+                    self.remove(pos);
+                    // Remove preceding space if there is one
+                    if pos > 1 && self.sql.tokens[pos - 1] == Token::Space {
+                        self.remove(pos - 1);
+                        continue;
+                    }
+                },
                 // Spaces don't influence the state
                 Token::Space => (),
                 // Reset state to default if there were no matches
@@ -271,6 +280,30 @@ mod tests {
         assert_eq!(
             sanitize_string("INSERT INTO \"table\" (\"field1\", \"field2\") VALUES ('value', 1);".to_string()),
             "INSERT INTO \"table\" (\"field1\", \"field2\") VALUES (?, ?);"
+        );
+    }
+
+    #[test]
+    fn test_comment_pound() {
+        assert_eq!(
+            sanitize_string("SELECT * FROM table # This is a comment".to_string()),
+            "SELECT * FROM table"
+        );
+    }
+
+    #[test]
+    fn test_comment_double_dash() {
+        assert_eq!(
+            sanitize_string("SELECT * FROM table -- This is a comment\n SELECT".to_string()),
+            "SELECT * FROM table\n SELECT"
+        );
+    }
+
+    #[test]
+    fn test_comment_multi_line() {
+        assert_eq!(
+            sanitize_string("SELECT * FROM table /* This is a comment */ SELECT".to_string()),
+            "SELECT * FROM table SELECT"
         );
     }
 }

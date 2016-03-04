@@ -87,6 +87,34 @@ impl SqlLexer {
                     self.pos = end + 1;
                     Token::DoubleQuoted(BufferPosition::new(start, end))
                 },
+                // Pound comment
+                '#' => {
+                    let start = self.pos;
+                    let end = self.find_until(|c| c == '\n' || c == '\r');
+                    self.pos = end;
+                    Token::Comment(BufferPosition::new(start, end))
+                },
+                // Double dash comment
+                '-' if self.pos + 1 < self.len && self.buf.char_at(self.pos + 1) == '-' => {
+                    let start = self.pos;
+                    let end = self.find_until(|c| c == '\n' || c == '\r');
+                    self.pos = end;
+                    Token::Comment(BufferPosition::new(start, end))
+                },
+                // Multi line comment
+                '/' if self.pos + 1 < self.len && self.buf.char_at(self.pos + 1) == '*' => {
+                    let start = self.pos;
+                    let mut end = self.pos + 2;
+                    loop {
+                        if end >= self.len || (self.buf.char_at(end) == '/' && self.buf.char_at(end - 1) == '*') {
+                            break
+                        }
+                        end += 1;
+                    }
+                    end += 1;
+                    self.pos = end;
+                    Token::Comment(BufferPosition::new(start, end))
+                },
                 // Generic tokens
                 ' ' => {
                     self.pos += 1;
@@ -685,12 +713,77 @@ mod tests {
 
     #[test]
     fn test_unknown() {
-        let sql = "~ #".to_string();
+        let sql = "~ ^".to_string();
         let lexer = SqlLexer::new(sql);
         let expected = vec![
             Token::Unknown('~'),
             Token::Space,
-            Token::Unknown('#'),
+            Token::Unknown('^'),
+        ];
+
+        assert_eq!(lexer.lex().tokens, expected);
+    }
+
+    #[test]
+    fn test_comment_pound() {
+        let sql = "SELECT * FROM table # This is a comment\n SELECT".to_string();
+        let lexer = SqlLexer::new(sql);
+        let expected = vec![
+            Token::Keyword(Keyword::Select),
+            Token::Space,
+            Token::Wildcard,
+            Token::Space,
+            Token::Keyword(Keyword::From),
+            Token::Space,
+            Token::Keyword(Keyword::Other(BufferPosition::new(14, 19))),
+            Token::Space,
+            Token::Comment(BufferPosition::new(20, 39)),
+            Token::Newline,
+            Token::Space,
+            Token::Keyword(Keyword::Select)
+        ];
+
+        assert_eq!(lexer.lex().tokens, expected);
+    }
+
+    #[test]
+    fn test_comment_double_dash() {
+        let sql = "SELECT * FROM table -- This is a comment\n SELECT".to_string();
+        let lexer = SqlLexer::new(sql);
+        let expected = vec![
+            Token::Keyword(Keyword::Select),
+            Token::Space,
+            Token::Wildcard,
+            Token::Space,
+            Token::Keyword(Keyword::From),
+            Token::Space,
+            Token::Keyword(Keyword::Other(BufferPosition::new(14, 19))),
+            Token::Space,
+            Token::Comment(BufferPosition::new(20, 40)),
+            Token::Newline,
+            Token::Space,
+            Token::Keyword(Keyword::Select)
+        ];
+
+        assert_eq!(lexer.lex().tokens, expected);
+    }
+
+    #[test]
+    fn test_comment_multi_line() {
+        let sql = "SELECT * FROM table /* This is a comment */ SELECT".to_string();
+        let lexer = SqlLexer::new(sql);
+        let expected = vec![
+            Token::Keyword(Keyword::Select),
+            Token::Space,
+            Token::Wildcard,
+            Token::Space,
+            Token::Keyword(Keyword::From),
+            Token::Space,
+            Token::Keyword(Keyword::Other(BufferPosition::new(14, 19))),
+            Token::Space,
+            Token::Comment(BufferPosition::new(20, 43)),
+            Token::Space,
+            Token::Keyword(Keyword::Select)
         ];
 
         assert_eq!(lexer.lex().tokens, expected);

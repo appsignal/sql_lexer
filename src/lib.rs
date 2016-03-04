@@ -103,6 +103,7 @@ pub enum Token {
     DoubleQuoted(BufferPosition),
     SingleQuoted(BufferPosition),
     Numeric(BufferPosition),
+    Comment(BufferPosition),
     Space,
     Newline,
     Dot,

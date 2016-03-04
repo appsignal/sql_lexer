@@ -89,6 +89,10 @@ impl SqlWriter {
                 &Token::Numeric(ref pos) => {
                     out.push_str(self.sql.buffer_content(pos));
                 },
+                // Comment
+                &Token::Comment(ref pos) => {
+                    out.push_str(self.sql.buffer_content(pos));
+                },
                 // Generic tokens
                 &Token::Space => out.push(' '),
                 &Token::Newline => out.push('\n'),
@@ -214,6 +218,30 @@ mod tests {
     #[test]
     fn test_write_unknown() {
         let sql = "~ #";
+        let written = helpers::lex_and_write(sql.to_string());
+
+        assert_eq!(written, sql);
+    }
+
+    #[test]
+    fn test_comment_pound() {
+        let sql = "SELECT * FROM table # This is a comment";
+        let written = helpers::lex_and_write(sql.to_string());
+
+        assert_eq!(written, sql);
+    }
+
+    #[test]
+    fn test_comment_double_dash() {
+        let sql = "SELECT * FROM table -- This is a comment";
+        let written = helpers::lex_and_write(sql.to_string());
+
+        assert_eq!(written, sql);
+    }
+
+    #[test]
+    fn test_comment_multi_line() {
+        let sql = "SELECT * FROM table /* This is a comment */";
         let written = helpers::lex_and_write(sql.to_string());
 
         assert_eq!(written, sql);
