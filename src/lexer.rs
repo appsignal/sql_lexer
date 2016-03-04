@@ -248,9 +248,10 @@ impl SqlLexer {
                     Token::Numeric(BufferPosition::new(start, end))
                 },
                 // Unknown
-                _ => break
-
-
+                c => {
+                    self.pos += 1;
+                    Token::Unknown(c)
+                }
             };
 
             tokens.push(token);
@@ -677,6 +678,19 @@ mod tests {
             Token::Space,
             Token::NumberedPlaceholder(BufferPosition::new(8, 11)),
             Token::Semicolon
+        ];
+
+        assert_eq!(lexer.lex().tokens, expected);
+    }
+
+    #[test]
+    fn test_unknown() {
+        let sql = "~ #".to_string();
+        let lexer = SqlLexer::new(sql);
+        let expected = vec![
+            Token::Unknown('~'),
+            Token::Space,
+            Token::Unknown('#'),
         ];
 
         assert_eq!(lexer.lex().tokens, expected);

@@ -113,7 +113,8 @@ pub enum Token {
     Colon,
     Semicolon,
     Placeholder,
-    NumberedPlaceholder(BufferPosition)
+    NumberedPlaceholder(BufferPosition),
+    Unknown(char)
 }
 
 #[derive(Debug,PartialEq)]

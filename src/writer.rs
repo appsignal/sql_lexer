@@ -102,6 +102,9 @@ impl SqlWriter {
                 &Token::Placeholder => out.push('?'),
                 &Token::NumberedPlaceholder(ref pos) => {
                     out.push_str(self.sql.buffer_content(pos));
+                },
+                &Token::Unknown(c) => {
+                    out.push(c);
                 }
             }
         }
@@ -203,6 +206,14 @@ mod tests {
     #[test]
     fn test_write_placeholders() {
         let sql = "? $1 $2 $23";
+        let written = helpers::lex_and_write(sql.to_string());
+
+        assert_eq!(written, sql);
+    }
+
+    #[test]
+    fn test_write_unknown() {
+        let sql = "~ #";
         let written = helpers::lex_and_write(sql.to_string());
 
         assert_eq!(written, sql);
