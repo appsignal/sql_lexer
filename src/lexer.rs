@@ -1,4 +1,4 @@
-use super::{Sql,Operator,ArithmeticOperator,BitwiseOperator,ComparisonOperator,LogicalOperator,BufferPosition,Token,Keyword};
+use super::{Sql,Operator,ArithmeticOperator,BitwiseOperator,ComparisonOperator,LogicalOperator,BufferSlice,Token,Keyword};
 
 #[derive(Clone,PartialEq)]
 enum State {
@@ -71,35 +71,35 @@ impl SqlLexer {
                     let start = self.pos + 1;
                     let end = self.find_until(|c| c == '`');
                     self.pos = end + 1;
-                    Token::Backticked(BufferPosition::new(start, end))
+                    Token::Backticked(BufferSlice::new(start, end))
                 },
                 // Single quoted
                 '\'' => {
                     let start = self.pos + 1;
                     let end = self.find_until_delimiter_with_possible_escaping('\'');
                     self.pos = end + 1;
-                    Token::SingleQuoted(BufferPosition::new(start, end))
+                    Token::SingleQuoted(BufferSlice::new(start, end))
                 },
                 // Double quoted
                 '"' => {
                     let start = self.pos + 1;
                     let end = self.find_until_delimiter_with_possible_escaping('"');
                     self.pos = end + 1;
-                    Token::DoubleQuoted(BufferPosition::new(start, end))
+                    Token::DoubleQuoted(BufferSlice::new(start, end))
                 },
                 // Pound comment
                 '#' => {
                     let start = self.pos;
                     let end = self.find_until(|c| c == '\n' || c == '\r');
                     self.pos = end;
-                    Token::Comment(BufferPosition::new(start, end))
+                    Token::Comment(BufferSlice::new(start, end))
                 },
                 // Double dash comment
                 '-' if self.pos + 1 < self.len && self.buf.char_at(self.pos + 1) == '-' => {
                     let start = self.pos;
                     let end = self.find_until(|c| c == '\n' || c == '\r');
                     self.pos = end;
-                    Token::Comment(BufferPosition::new(start, end))
+                    Token::Comment(BufferSlice::new(start, end))
                 },
                 // Multi line comment
                 '/' if self.pos + 1 < self.len && self.buf.char_at(self.pos + 1) == '*' => {
@@ -113,7 +113,7 @@ impl SqlLexer {
                     }
                     end += 1;
                     self.pos = end;
-                    Token::Comment(BufferPosition::new(start, end))
+                    Token::Comment(BufferSlice::new(start, end))
                 },
                 // Generic tokens
                 ' ' => {
@@ -156,7 +156,7 @@ impl SqlLexer {
                     let start = self.pos;
                     let end = self.find_until(|c| !c.is_numeric() );
                     self.pos = end;
-                    Token::NumberedPlaceholder(BufferPosition::new(start, end))
+                    Token::NumberedPlaceholder(BufferSlice::new(start, end))
                 },
                 // Arithmetic operators
                 '*' => {
@@ -259,7 +259,7 @@ impl SqlLexer {
                         "MATCH" | "match" => Token::Operator(Operator::Logical(LogicalOperator::Match)),
                         "REGEXP" | "regexp" => Token::Operator(Operator::Logical(LogicalOperator::Regexp)),
                         // Other keyword
-                        _ => Token::Keyword(Keyword::Other(BufferPosition::new(start, end)))
+                        _ => Token::Keyword(Keyword::Other(BufferSlice::new(start, end)))
                     }
                 },
                 // Numeric
@@ -273,7 +273,7 @@ impl SqlLexer {
                         }
                     });
                     self.pos = end;
-                    Token::Numeric(BufferPosition::new(start, end))
+                    Token::Numeric(BufferSlice::new(start, end))
                 },
                 // Unknown
                 c => {
@@ -295,7 +295,7 @@ impl SqlLexer {
 #[cfg(test)]
 mod tests {
     use super::SqlLexer;
-    use super::super::{Token,Operator,ArithmeticOperator,BitwiseOperator,ComparisonOperator,LogicalOperator,BufferPosition,Keyword};
+    use super::super::{Token,Operator,ArithmeticOperator,BitwiseOperator,ComparisonOperator,LogicalOperator,BufferSlice,Keyword};
 
     #[test]
     fn test_single_quoted_query() {
@@ -305,29 +305,29 @@ mod tests {
         let expected = vec![
             Token::Keyword(Keyword::Select),
             Token::Space,
-            Token::Backticked(BufferPosition::new(8, 13)),
+            Token::Backticked(BufferSlice::new(8, 13)),
             Token::Dot,
             Token::Wildcard,
             Token::Space,
             Token::Keyword(Keyword::From),
             Token::Space,
-            Token::Backticked(BufferPosition::new(23, 28)),
+            Token::Backticked(BufferSlice::new(23, 28)),
             Token::Space,
             Token::Keyword(Keyword::Where),
             Token::Space,
-            Token::Backticked(BufferPosition::new(37, 39)),
+            Token::Backticked(BufferSlice::new(37, 39)),
             Token::Space,
             Token::Operator(Operator::Comparison(ComparisonOperator::Equal)),
             Token::Space,
-            Token::SingleQuoted(BufferPosition::new(44, 50)),
+            Token::SingleQuoted(BufferSlice::new(44, 50)),
             Token::Space,
             Token::Keyword(Keyword::And),
             Token::Space,
-            Token::Backticked(BufferPosition::new(57, 62)),
+            Token::Backticked(BufferSlice::new(57, 62)),
             Token::Space,
             Token::Operator(Operator::Comparison(ComparisonOperator::Equal)),
             Token::Space,
-            Token::SingleQuoted(BufferPosition::new(67, 76)),
+            Token::SingleQuoted(BufferSlice::new(67, 76)),
             Token::Semicolon
         ];
 
@@ -342,29 +342,29 @@ mod tests {
         let expected = vec![
             Token::Keyword(Keyword::Select),
             Token::Space,
-            Token::DoubleQuoted(BufferPosition::new(8, 13)),
+            Token::DoubleQuoted(BufferSlice::new(8, 13)),
             Token::Dot,
             Token::Wildcard,
             Token::Space,
             Token::Keyword(Keyword::From),
             Token::Space,
-            Token::DoubleQuoted(BufferPosition::new(23, 28)),
+            Token::DoubleQuoted(BufferSlice::new(23, 28)),
             Token::Space,
             Token::Keyword(Keyword::Where),
             Token::Space,
-            Token::DoubleQuoted(BufferPosition::new(37, 39)),
+            Token::DoubleQuoted(BufferSlice::new(37, 39)),
             Token::Space,
             Token::Operator(Operator::Comparison(ComparisonOperator::Equal)),
             Token::Space,
-            Token::Numeric(BufferPosition::new(43, 45)),
+            Token::Numeric(BufferSlice::new(43, 45)),
             Token::Space,
             Token::Keyword(Keyword::And),
             Token::Space,
-            Token::DoubleQuoted(BufferPosition::new(51, 57)),
+            Token::DoubleQuoted(BufferSlice::new(51, 57)),
             Token::Space,
             Token::Operator(Operator::Comparison(ComparisonOperator::Equal)),
             Token::Space,
-            Token::Numeric(BufferPosition::new(61, 65)),
+            Token::Numeric(BufferSlice::new(61, 65)),
             Token::Semicolon
         ];
 
@@ -378,19 +378,19 @@ mod tests {
 
         let expected = vec![
             Token::Keyword(Keyword::Select),
-            Token::DoubleQuoted(BufferPosition::new(7, 12)),
+            Token::DoubleQuoted(BufferSlice::new(7, 12)),
             Token::Dot,
             Token::Wildcard,
             Token::Keyword(Keyword::From),
-            Token::DoubleQuoted(BufferPosition::new(20, 25)),
+            Token::DoubleQuoted(BufferSlice::new(20, 25)),
             Token::Keyword(Keyword::Where),
-            Token::DoubleQuoted(BufferPosition::new(32, 34)),
+            Token::DoubleQuoted(BufferSlice::new(32, 34)),
             Token::Operator(Operator::Comparison(ComparisonOperator::Equal)),
-            Token::Numeric(BufferPosition::new(36, 38)),
+            Token::Numeric(BufferSlice::new(36, 38)),
             Token::Keyword(Keyword::And),
-            Token::DoubleQuoted(BufferPosition::new(42, 48)),
+            Token::DoubleQuoted(BufferSlice::new(42, 48)),
             Token::Operator(Operator::Comparison(ComparisonOperator::Equal)),
-            Token::Numeric(BufferPosition::new(50, 54)),
+            Token::Numeric(BufferSlice::new(50, 54)),
             Token::Semicolon
         ];
 
@@ -409,20 +409,20 @@ mod tests {
             Token::Space,
             Token::Keyword(Keyword::From),
             Token::Space,
-            Token::DoubleQuoted(BufferPosition::new(15, 20)),
+            Token::DoubleQuoted(BufferSlice::new(15, 20)),
             Token::Space,
             Token::Keyword(Keyword::Where),
             Token::Space,
-            Token::DoubleQuoted(BufferPosition::new(29, 31)),
+            Token::DoubleQuoted(BufferSlice::new(29, 31)),
             Token::Space,
             Token::Operator(Operator::Logical(LogicalOperator::In)),
             Token::Space,
             Token::ParentheseOpen,
-            Token::Numeric(BufferPosition::new(37, 38)),
+            Token::Numeric(BufferSlice::new(37, 38)),
             Token::Comma,
-            Token::Numeric(BufferPosition::new(39, 40)),
+            Token::Numeric(BufferSlice::new(39, 40)),
             Token::Comma,
-            Token::Numeric(BufferPosition::new(41, 42)),
+            Token::Numeric(BufferSlice::new(41, 42)),
             Token::ParentheseClose,
             Token::Semicolon
         ];
@@ -652,7 +652,7 @@ mod tests {
         let lexer = SqlLexer::new(sql);
 
         let expected = vec![
-            Token::Keyword(Keyword::Other(BufferPosition::new(0, 7))),
+            Token::Keyword(Keyword::Other(BufferSlice::new(0, 7))),
             Token::Space,
             Token::Keyword(Keyword::From),
             Token::Semicolon
@@ -666,11 +666,11 @@ mod tests {
         let sql = "'val\\'ue' FROM 'sec\nret\\\\';".to_string();
         let lexer = SqlLexer::new(sql);
         let expected = vec![
-            Token::SingleQuoted(BufferPosition::new(1, 8)),
+            Token::SingleQuoted(BufferSlice::new(1, 8)),
             Token::Space,
             Token::Keyword(Keyword::From),
             Token::Space,
-            Token::SingleQuoted(BufferPosition::new(16, 25)),
+            Token::SingleQuoted(BufferSlice::new(16, 25)),
             Token::Semicolon
         ];
 
@@ -682,11 +682,11 @@ mod tests {
         let sql = "\"val\\\"ue\" FROM \"sec\nret\\\\\";".to_string();
         let lexer = SqlLexer::new(sql);
         let expected = vec![
-            Token::DoubleQuoted(BufferPosition::new(1, 8)),
+            Token::DoubleQuoted(BufferSlice::new(1, 8)),
             Token::Space,
             Token::Keyword(Keyword::From),
             Token::Space,
-            Token::DoubleQuoted(BufferPosition::new(16, 25)),
+            Token::DoubleQuoted(BufferSlice::new(16, 25)),
             Token::Semicolon
         ];
 
@@ -700,11 +700,11 @@ mod tests {
         let expected = vec![
             Token::Placeholder,
             Token::Space,
-            Token::NumberedPlaceholder(BufferPosition::new(2, 4)),
+            Token::NumberedPlaceholder(BufferSlice::new(2, 4)),
             Token::Space,
-            Token::NumberedPlaceholder(BufferPosition::new(5, 7)),
+            Token::NumberedPlaceholder(BufferSlice::new(5, 7)),
             Token::Space,
-            Token::NumberedPlaceholder(BufferPosition::new(8, 11)),
+            Token::NumberedPlaceholder(BufferSlice::new(8, 11)),
             Token::Semicolon
         ];
 
@@ -735,9 +735,9 @@ mod tests {
             Token::Space,
             Token::Keyword(Keyword::From),
             Token::Space,
-            Token::Keyword(Keyword::Other(BufferPosition::new(14, 19))),
+            Token::Keyword(Keyword::Other(BufferSlice::new(14, 19))),
             Token::Space,
-            Token::Comment(BufferPosition::new(20, 39)),
+            Token::Comment(BufferSlice::new(20, 39)),
             Token::Newline,
             Token::Space,
             Token::Keyword(Keyword::Select)
@@ -757,9 +757,9 @@ mod tests {
             Token::Space,
             Token::Keyword(Keyword::From),
             Token::Space,
-            Token::Keyword(Keyword::Other(BufferPosition::new(14, 19))),
+            Token::Keyword(Keyword::Other(BufferSlice::new(14, 19))),
             Token::Space,
-            Token::Comment(BufferPosition::new(20, 40)),
+            Token::Comment(BufferSlice::new(20, 40)),
             Token::Newline,
             Token::Space,
             Token::Keyword(Keyword::Select)
@@ -779,9 +779,9 @@ mod tests {
             Token::Space,
             Token::Keyword(Keyword::From),
             Token::Space,
-            Token::Keyword(Keyword::Other(BufferPosition::new(14, 19))),
+            Token::Keyword(Keyword::Other(BufferSlice::new(14, 19))),
             Token::Space,
-            Token::Comment(BufferPosition::new(20, 43)),
+            Token::Comment(BufferSlice::new(20, 43)),
             Token::Space,
             Token::Keyword(Keyword::Select)
         ];

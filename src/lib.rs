@@ -25,7 +25,7 @@ pub enum Keyword {
     Limit,   // LIMIT
     Offset,  // OFFSET
     Between, // BETWEEN
-    Other(BufferPosition)
+    Other(BufferSlice)
 }
 
 #[derive(Debug,PartialEq)]
@@ -80,15 +80,15 @@ pub enum BitwiseOperator {
 }
 
 #[derive(Debug,PartialEq)]
-pub struct BufferPosition {
+pub struct BufferSlice {
     pub start: usize,
     pub end: usize
 }
 
-impl BufferPosition {
-    pub fn new(start: usize, end: usize) -> BufferPosition {
+impl BufferSlice {
+    pub fn new(start: usize, end: usize) -> BufferSlice {
         assert!(start < end);
-        BufferPosition {
+        BufferSlice {
             start: start,
             end: end
         }
@@ -99,11 +99,11 @@ impl BufferPosition {
 pub enum Token {
     Operator(Operator),
     Keyword(Keyword),
-    Backticked(BufferPosition),
-    DoubleQuoted(BufferPosition),
-    SingleQuoted(BufferPosition),
-    Numeric(BufferPosition),
-    Comment(BufferPosition),
+    Backticked(BufferSlice),
+    DoubleQuoted(BufferSlice),
+    SingleQuoted(BufferSlice),
+    Numeric(BufferSlice),
+    Comment(BufferSlice),
     Space,
     Newline,
     Dot,
@@ -114,7 +114,7 @@ pub enum Token {
     Colon,
     Semicolon,
     Placeholder,
-    NumberedPlaceholder(BufferPosition),
+    NumberedPlaceholder(BufferSlice),
     Unknown(char)
 }
 
@@ -125,7 +125,12 @@ pub struct Sql {
 }
 
 impl Sql {
-    pub fn buffer_content(&self, pos: &BufferPosition) -> &str {
+    pub fn buffer_content(&self, pos: &BufferSlice) -> &str {
+        let len = self.buf.len();
+        if pos.start > len || pos.end > len {
+            // If the positions are out of bounds return a blank string
+            return ""
+        }
         &self.buf[pos.start..pos.end]
     }
 }
@@ -155,7 +160,7 @@ pub fn sanitize_string(buf: String) -> String {
 mod tests {
     use test;
     use super::Sql;
-    use super::{Token,Operator,BufferPosition,Keyword,ComparisonOperator};
+    use super::{Token,Operator,BufferSlice,Keyword,ComparisonOperator};
 
     #[test]
     fn test_buffer_content() {
@@ -163,9 +168,31 @@ mod tests {
             buf: "SELECT `table`.* FROM `table` WHERE `id` = 'secret';".to_string(),
             tokens: Vec::new()
         };
-        let buffer_position = BufferPosition::new(17, 21);
+        let buffer_position = BufferSlice::new(17, 21);
 
         assert_eq!("FROM", sql.buffer_content(&buffer_position));
+    }
+
+    #[test]
+    fn test_buffer_content_out_of_bounds() {
+        let sql = Sql {
+            buf: "buffer content".to_string(),
+            tokens: Vec::new()
+        };
+        let buffer_position = BufferSlice::new(100, 200);
+
+        assert_eq!("", sql.buffer_content(&buffer_position));
+    }
+
+    #[test]
+    fn test_buffer_content_out_of_bounds_partially() {
+        let sql = Sql {
+            buf: "buffer content".to_string(),
+            tokens: Vec::new()
+        };
+        let buffer_position = BufferSlice::new(0, 200);
+
+        assert_eq!("", sql.buffer_content(&buffer_position));
     }
 
     #[test]
@@ -179,7 +206,7 @@ mod tests {
             Token::Space,
             Token::Keyword(Keyword::From),
             Token::Space,
-            Token::Backticked(BufferPosition::new(15, 20))
+            Token::Backticked(BufferSlice::new(15, 20))
         ];
 
         let sql = super::lex(sql_buffer.to_string());
@@ -204,11 +231,11 @@ mod tests {
             Token::Space,
             Token::Keyword(Keyword::From),
             Token::Space,
-            Token::Backticked(BufferPosition::new(15, 20)),
+            Token::Backticked(BufferSlice::new(15, 20)),
             Token::Space,
             Token::Keyword(Keyword::Where),
             Token::Space,
-            Token::Backticked(BufferPosition::new(29, 31)),
+            Token::Backticked(BufferSlice::new(29, 31)),
             Token::Space,
             Token::Operator(Operator::Comparison(ComparisonOperator::Equal)),
             Token::Space,

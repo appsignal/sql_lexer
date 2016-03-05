@@ -64,34 +64,34 @@ impl SqlWriter {
                 &Token::Keyword(Keyword::Limit) => out.push_str("LIMIT"),
                 &Token::Keyword(Keyword::Offset) => out.push_str("OFFSET"),
                 &Token::Keyword(Keyword::Between) => out.push_str("BETWEEN"),
-                &Token::Keyword(Keyword::Other(ref pos)) => {
-                    out.push_str(self.sql.buffer_content(pos));
+                &Token::Keyword(Keyword::Other(ref slice)) => {
+                    out.push_str(self.sql.buffer_content(slice));
                 },
                 // Backticked
-                &Token::Backticked(ref pos) => {
+                &Token::Backticked(ref slice) => {
                     out.push('`');
-                    out.push_str(self.sql.buffer_content(pos));
+                    out.push_str(self.sql.buffer_content(slice));
                     out.push('`');
                 },
                 // Double quoted
-                &Token::DoubleQuoted(ref pos) => {
+                &Token::DoubleQuoted(ref slice) => {
                     out.push('"');
-                    out.push_str(self.sql.buffer_content(pos));
+                    out.push_str(self.sql.buffer_content(slice));
                     out.push('"');
                 },
                 // Single quoted
-                &Token::SingleQuoted(ref pos) => {
+                &Token::SingleQuoted(ref slice) => {
                     out.push('\'');
-                    out.push_str(self.sql.buffer_content(pos));
+                    out.push_str(self.sql.buffer_content(slice));
                     out.push('\'');
                 },
                 // Numeric
-                &Token::Numeric(ref pos) => {
-                    out.push_str(self.sql.buffer_content(pos));
+                &Token::Numeric(ref slice) => {
+                    out.push_str(self.sql.buffer_content(slice));
                 },
                 // Comment
-                &Token::Comment(ref pos) => {
-                    out.push_str(self.sql.buffer_content(pos));
+                &Token::Comment(ref slice) => {
+                    out.push_str(self.sql.buffer_content(slice));
                 },
                 // Generic tokens
                 &Token::Space => out.push(' '),
@@ -104,8 +104,8 @@ impl SqlWriter {
                 &Token::Colon => out.push(':'),
                 &Token::Semicolon => out.push(';'),
                 &Token::Placeholder => out.push('?'),
-                &Token::NumberedPlaceholder(ref pos) => {
-                    out.push_str(self.sql.buffer_content(pos));
+                &Token::NumberedPlaceholder(ref slice) => {
+                    out.push_str(self.sql.buffer_content(slice));
                 },
                 &Token::Unknown(c) => {
                     out.push(c);
