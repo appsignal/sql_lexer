@@ -306,4 +306,14 @@ mod tests {
             "SELECT * FROM table SELECT"
         );
     }
+
+    #[test]
+    fn test_keep_placeholders() {
+        let sql = "SELECT \"users\".* FROM \"users\" WHERE \"users\".\"type\" IN (?) AND \"users\".\"active\" = $1";
+
+        assert_eq!(
+            sanitize_string(sql.to_string()),
+            sql
+        );
+    }
 }
