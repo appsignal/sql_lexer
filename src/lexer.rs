@@ -788,4 +788,13 @@ mod tests {
 
         assert_eq!(lexer.lex().tokens, expected);
     }
+
+    #[test]
+    fn test_empty() {
+        let sql = "".to_string();
+        let lexer = SqlLexer::new(sql);
+        let expected = vec![];
+
+        assert_eq!(lexer.lex().tokens, expected);
+    }
 }

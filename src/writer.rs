@@ -247,6 +247,14 @@ mod tests {
         assert_eq!(written, sql);
     }
 
+    #[test]
+    fn test_empty() {
+        let sql = "";
+        let written = helpers::lex_and_write(sql.to_string());
+
+        assert_eq!(written, sql);
+    }
+
     mod helpers {
         pub fn lex_and_write(sql: String) -> String {
             super::super::super::write(super::super::super::lex(sql))
