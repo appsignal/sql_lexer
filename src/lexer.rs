@@ -1,4 +1,3 @@
-use std::panic;
 use super::{Sql,Operator,ArithmeticOperator,BitwiseOperator,ComparisonOperator,LogicalOperator,BufferSlice,Token,Keyword};
 
 #[derive(Clone,PartialEq)]
@@ -27,15 +26,9 @@ impl SqlLexer {
         }
     }
 
+    #[inline]
     fn char_at(&self, pos: usize) -> char {
-        // char_at can panic if the position is not the start of a valid
-        // utf-8 sequence. Return a placeholder in that case.
-        match panic::recover(|| {
-            self.buf.char_at(pos)
-        }) {
-            Ok(c) => c,
-            Err(_) => '�',
-        }
+        self.buf[pos..pos + 1].chars().next().unwrap_or('�')
     }
 
     fn find_until<F>(&self, at_end_function: F) -> usize where F: Fn(char) -> bool {

@@ -1,6 +1,3 @@
-#![feature(std_panic)]
-#![feature(recover)]
-#![feature(str_char)]
 #![feature(test)]
 
 extern crate test;
