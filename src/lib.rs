@@ -173,6 +173,17 @@ mod tests {
     }
 
     #[test]
+    fn test_buffer_content_multibyte_character() {
+        let sql = Sql {
+            buf: "'hæld'".to_string(),
+            tokens: Vec::new()
+        };
+        let buffer_position = BufferSlice::new(1, 6);
+
+        assert_eq!("hæld", sql.buffer_content(&buffer_position));
+    }
+
+    #[test]
     fn test_buffer_content_out_of_bounds() {
         let sql = Sql {
             buf: "buffer content".to_string(),

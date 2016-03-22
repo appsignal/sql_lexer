@@ -9,26 +9,34 @@ enum State {
 
 #[derive(Clone)]
 pub struct SqlLexer {
-    state: State,
-    buf: String,
-    len: usize,
-    pos: usize
+    state:        State,
+    buf:          String,
+    char_indices: Vec<(usize, char)>,
+    len:          usize,
+    pos:          usize
 }
 
 impl SqlLexer {
     pub fn new(buf: String) -> SqlLexer {
-        let len = buf.len();
+        let char_indices: Vec<(usize, char)> = buf.char_indices().collect();
+        let len = char_indices.len();
         SqlLexer {
-            state: State::Default,
-            buf: buf,
-            len: len,
-            pos: 0
+            state:        State::Default,
+            buf:          buf,
+            char_indices: char_indices,
+            len:          len,
+            pos:           0
         }
     }
 
     #[inline]
     fn char_at(&self, pos: usize) -> char {
-        self.buf[pos..pos + 1].chars().next().unwrap_or('�')
+        self.char_indices[pos].1
+    }
+
+    #[inline]
+    fn byte_offset(&self, pos: usize) -> usize {
+        self.char_indices[pos].0
     }
 
     fn find_until<F>(&self, at_end_function: F) -> usize where F: Fn(char) -> bool {
@@ -70,45 +78,41 @@ impl SqlLexer {
                 break
             }
 
-            let token = match self.char_at(self.pos) {
+            let (current_byte_offset, current_char) = self.char_indices[self.pos];
+
+            let token = match current_char {
                 // Back quoted
                 '`' => {
-                    let start = self.pos + 1;
                     let end = self.find_until(|c| c == '`');
                     self.pos = end + 1;
-                    Token::Backticked(BufferSlice::new(start, end))
+                    Token::Backticked(BufferSlice::new(current_byte_offset + 1, self.byte_offset(end)))
                 },
                 // Single quoted
                 '\'' => {
-                    let start = self.pos + 1;
                     let end = self.find_until_delimiter_with_possible_escaping('\'');
                     self.pos = end + 1;
-                    Token::SingleQuoted(BufferSlice::new(start, end))
+                    Token::SingleQuoted(BufferSlice::new(current_byte_offset + 1, self.byte_offset(end)))
                 },
                 // Double quoted
                 '"' => {
-                    let start = self.pos + 1;
                     let end = self.find_until_delimiter_with_possible_escaping('"');
                     self.pos = end + 1;
-                    Token::DoubleQuoted(BufferSlice::new(start, end))
+                    Token::DoubleQuoted(BufferSlice::new(current_byte_offset + 1, self.byte_offset(end)))
                 },
                 // Pound comment
                 '#' => {
-                    let start = self.pos;
                     let end = self.find_until(|c| c == '\n' || c == '\r');
                     self.pos = end;
-                    Token::Comment(BufferSlice::new(start, end))
+                    Token::Comment(BufferSlice::new(current_byte_offset, end))
                 },
                 // Double dash comment
                 '-' if self.pos + 1 < self.len && self.char_at(self.pos + 1) == '-' => {
-                    let start = self.pos;
                     let end = self.find_until(|c| c == '\n' || c == '\r');
                     self.pos = end;
-                    Token::Comment(BufferSlice::new(start, end))
+                    Token::Comment(BufferSlice::new(current_byte_offset, end))
                 },
                 // Multi line comment
                 '/' if self.pos + 1 < self.len && self.char_at(self.pos + 1) == '*' => {
-                    let start = self.pos;
                     let mut end = self.pos + 2;
                     loop {
                         if end >= self.len || (self.char_at(end) == '/' && self.char_at(end - 1) == '*') {
@@ -118,7 +122,7 @@ impl SqlLexer {
                     }
                     end += 1;
                     self.pos = end;
-                    Token::Comment(BufferSlice::new(start, end))
+                    Token::Comment(BufferSlice::new(current_byte_offset, end))
                 },
                 // Generic tokens
                 ' ' => {
@@ -158,10 +162,9 @@ impl SqlLexer {
                     Token::Placeholder
                 },
                 '$' => {
-                    let start = self.pos;
                     let end = self.find_until(|c| !c.is_numeric() );
                     self.pos = end;
-                    Token::NumberedPlaceholder(BufferSlice::new(start, end))
+                    Token::NumberedPlaceholder(BufferSlice::new(current_byte_offset, end))
                 },
                 // Arithmetic operators
                 '*' => {
@@ -220,7 +223,6 @@ impl SqlLexer {
                 },
                 // Logical operators and keywords
                 c if c.is_alphabetic() => {
-                    let start = self.pos;
                     let end = self.find_until(|c| {
                         match c {
                             '_' => false,
@@ -231,7 +233,7 @@ impl SqlLexer {
                         }
                     });
                     self.pos = end;
-                    match &self.buf[start..end] {
+                    match &self.buf[current_byte_offset..end] {
                         // Keywords
                         "SELECT" | "select" => {
                             self.state = State::PastSelect;
@@ -264,12 +266,11 @@ impl SqlLexer {
                         "MATCH" | "match" => Token::Operator(Operator::Logical(LogicalOperator::Match)),
                         "REGEXP" | "regexp" => Token::Operator(Operator::Logical(LogicalOperator::Regexp)),
                         // Other keyword
-                        _ => Token::Keyword(Keyword::Other(BufferSlice::new(start, end)))
+                        _ => Token::Keyword(Keyword::Other(BufferSlice::new(current_byte_offset, end)))
                     }
                 },
                 // Numeric
                 c if c.is_numeric() => {
-                    let start = self.pos;
                     let end = self.find_until(|c| {
                         match c {
                             '.' => false,
@@ -278,7 +279,7 @@ impl SqlLexer {
                         }
                     });
                     self.pos = end;
-                    Token::Numeric(BufferSlice::new(start, end))
+                    Token::Numeric(BufferSlice::new(current_byte_offset, end))
                 },
                 // Unknown
                 c => {
@@ -683,6 +684,21 @@ mod tests {
     }
 
     #[test]
+    fn test_single_quoted_multibyte_character() {
+        let sql = "'hæld';".to_string();
+        let lexer = SqlLexer::new(sql);
+
+        // This is one byte longer than the number of characters since
+        // æ is two bytes long.
+        let expected = vec![
+            Token::SingleQuoted(BufferSlice::new(1, 6)),
+            Token::Semicolon
+        ];
+
+        assert_eq!(lexer.lex().tokens, expected);
+    }
+
+    #[test]
     fn test_double_quoted() {
         let sql = "\"val\\\"ue\" FROM \"sec\nret\\\\\";".to_string();
         let lexer = SqlLexer::new(sql);
@@ -692,6 +708,21 @@ mod tests {
             Token::Keyword(Keyword::From),
             Token::Space,
             Token::DoubleQuoted(BufferSlice::new(16, 25)),
+            Token::Semicolon
+        ];
+
+        assert_eq!(lexer.lex().tokens, expected);
+    }
+
+    #[test]
+    fn test_double_quoted_multibyte_character() {
+        let sql = "\"hæld\";".to_string();
+        let lexer = SqlLexer::new(sql);
+
+        // This is one byte longer than the number of characters since
+        // æ is two bytes long.
+        let expected = vec![
+            Token::DoubleQuoted(BufferSlice::new(1, 6)),
             Token::Semicolon
         ];
 
