@@ -1,3 +1,5 @@
+#![feature(std_panic)]
+#![feature(recover)]
 #![feature(str_char)]
 #![feature(test)]
 

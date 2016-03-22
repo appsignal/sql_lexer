@@ -1,3 +1,4 @@
+use std::panic;
 use super::{Sql,Operator,ArithmeticOperator,BitwiseOperator,ComparisonOperator,LogicalOperator,BufferSlice,Token,Keyword};
 
 #[derive(Clone,PartialEq)]
@@ -26,10 +27,21 @@ impl SqlLexer {
         }
     }
 
+    fn char_at(&self, pos: usize) -> char {
+        // char_at can panic if the position is not the start of a valid
+        // utf-8 sequence. Return a placeholder in that case.
+        match panic::recover(|| {
+            self.buf.char_at(pos)
+        }) {
+            Ok(c) => c,
+            Err(_) => '�',
+        }
+    }
+
     fn find_until<F>(&self, at_end_function: F) -> usize where F: Fn(char) -> bool {
         let mut end = self.pos + 1;
         loop {
-            if end >= self.len || at_end_function(self.buf.char_at(end)) {
+            if end >= self.len || at_end_function(self.char_at(end)) {
                 break
             }
             end += 1;
@@ -44,7 +56,7 @@ impl SqlLexer {
             if end >= self.len {
                 break
             }
-            let c = self.buf.char_at(end);
+            let c = self.char_at(end);
             if c == character && escape_char_count % 2 == 0  {
                 break
             } else if c == '\\' {
@@ -65,7 +77,7 @@ impl SqlLexer {
                 break
             }
 
-            let token = match self.buf.char_at(self.pos) {
+            let token = match self.char_at(self.pos) {
                 // Back quoted
                 '`' => {
                     let start = self.pos + 1;
@@ -95,18 +107,18 @@ impl SqlLexer {
                     Token::Comment(BufferSlice::new(start, end))
                 },
                 // Double dash comment
-                '-' if self.pos + 1 < self.len && self.buf.char_at(self.pos + 1) == '-' => {
+                '-' if self.pos + 1 < self.len && self.char_at(self.pos + 1) == '-' => {
                     let start = self.pos;
                     let end = self.find_until(|c| c == '\n' || c == '\r');
                     self.pos = end;
                     Token::Comment(BufferSlice::new(start, end))
                 },
                 // Multi line comment
-                '/' if self.pos + 1 < self.len && self.buf.char_at(self.pos + 1) == '*' => {
+                '/' if self.pos + 1 < self.len && self.char_at(self.pos + 1) == '*' => {
                     let start = self.pos;
                     let mut end = self.pos + 2;
                     loop {
-                        if end >= self.len || (self.buf.char_at(end) == '/' && self.buf.char_at(end - 1) == '*') {
+                        if end >= self.len || (self.char_at(end) == '/' && self.char_at(end - 1) == '*') {
                             break
                         }
                         end += 1;
