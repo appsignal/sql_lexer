@@ -86,7 +86,6 @@ pub struct BufferSlice {
 
 impl BufferSlice {
     pub fn new(start: usize, end: usize) -> BufferSlice {
-        assert!(start < end);
         BufferSlice {
             start: start,
             end: end
@@ -126,7 +125,7 @@ pub struct Sql {
 impl Sql {
     pub fn buffer_content(&self, pos: &BufferSlice) -> &str {
         let len = self.buf.len();
-        if pos.start > len || pos.end > len {
+        if pos.end < pos.start || pos.start > len || pos.end > len {
             // If the positions are out of bounds return a blank string
             return ""
         }
@@ -181,6 +180,17 @@ mod tests {
         let buffer_position = BufferSlice::new(1, 6);
 
         assert_eq!("hæld", sql.buffer_content(&buffer_position));
+    }
+
+    #[test]
+    fn test_buffer_content_wrong_order() {
+        let sql = Sql {
+            buf: "buffer content".to_string(),
+            tokens: Vec::new()
+        };
+        let buffer_position = BufferSlice::new(6, 1);
+
+        assert_eq!("", sql.buffer_content(&buffer_position));
     }
 
     #[test]
