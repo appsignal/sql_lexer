@@ -172,14 +172,15 @@ mod tests {
     }
 
     #[test]
-    fn test_buffer_content_multibyte_character() {
+    fn test_buffer_content_multibyte_characters() {
         let sql = Sql {
-            buf: "'hæld'".to_string(),
+            buf: "\"hæld\" ; 'jæld' ; `tæld`".to_string(),
             tokens: Vec::new()
         };
-        let buffer_position = BufferSlice::new(1, 6);
 
-        assert_eq!("hæld", sql.buffer_content(&buffer_position));
+        assert_eq!("hæld", sql.buffer_content(&BufferSlice::new(1, 6)));
+        assert_eq!("jæld", sql.buffer_content(&BufferSlice::new(11, 16)));
+        assert_eq!("tæld", sql.buffer_content(&BufferSlice::new(21, 26)));
     }
 
     #[test]

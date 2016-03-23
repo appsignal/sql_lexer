@@ -684,21 +684,6 @@ mod tests {
     }
 
     #[test]
-    fn test_single_quoted_multibyte_character() {
-        let sql = "'hæld';".to_string();
-        let lexer = SqlLexer::new(sql);
-
-        // This is one byte longer than the number of characters since
-        // æ is two bytes long.
-        let expected = vec![
-            Token::SingleQuoted(BufferSlice::new(1, 6)),
-            Token::Semicolon
-        ];
-
-        assert_eq!(lexer.lex().tokens, expected);
-    }
-
-    #[test]
     fn test_double_quoted() {
         let sql = "\"val\\\"ue\" FROM \"sec\nret\\\\\";".to_string();
         let lexer = SqlLexer::new(sql);
@@ -715,15 +700,22 @@ mod tests {
     }
 
     #[test]
-    fn test_double_quoted_multibyte_character() {
-        let sql = "\"hæld\";".to_string();
+    fn test_multibyte_characters() {
+        let sql = "\"hæld\" ; 'jæld' ; `tæld`".to_string();
         let lexer = SqlLexer::new(sql);
 
-        // This is one byte longer than the number of characters since
+        // These are one byte longer than the number of characters since
         // æ is two bytes long.
         let expected = vec![
             Token::DoubleQuoted(BufferSlice::new(1, 6)),
-            Token::Semicolon
+            Token::Space,
+            Token::Semicolon,
+            Token::Space,
+            Token::SingleQuoted(BufferSlice::new(11, 16)),
+            Token::Space,
+            Token::Semicolon,
+            Token::Space,
+            Token::Backticked(BufferSlice::new(21, 26))
         ];
 
         assert_eq!(lexer.lex().tokens, expected);
