@@ -29,45 +29,54 @@ impl SqlLexer {
         }
     }
 
-    #[inline]
     fn char_at(&self, pos: usize) -> char {
         self.char_indices[pos].1
     }
 
-    #[inline]
-    fn byte_offset(&self, pos: usize) -> usize {
-        self.char_indices[pos].0
-    }
-
-    fn find_until<F>(&self, at_end_function: F) -> usize where F: Fn(char) -> bool {
-        let mut end = self.pos + 1;
+    fn scan_until<F>(&mut self, mut current_byte_offset: usize, at_end_function: F) -> usize where F: Fn(char) -> bool {
+        self.pos += 1;
         loop {
-            if end >= self.len || at_end_function(self.char_at(end)) {
+            if self.pos >= self.len {
+                // We're at the end, we want to include the last character
+                if self.pos > 0 {
+                    current_byte_offset += self.char_indices[self.pos - 1].1.len_utf8();
+                }
                 break
             }
-            end += 1;
+            let indice = self.char_indices[self.pos];
+            current_byte_offset = indice.0;
+            if at_end_function(indice.1) {
+                break
+            }
+            self.pos += 1;
         }
-        end
+        current_byte_offset
     }
 
-    fn find_until_delimiter_with_possible_escaping(&self, character: char) -> usize {
-        let mut end = self.pos + 1;
+    fn scan_for_delimiter_with_possible_escaping(&mut self, mut current_byte_offset: usize, delimiter: char) -> usize {
         let mut escape_char_count = 0;
+        self.pos += 1;
         loop {
-            if end >= self.len {
+            if self.pos >= self.len {
+                // We're at the end, we want to include the last character
+                if self.pos > 0 {
+                    current_byte_offset += self.char_indices[self.pos - 1].1.len_utf8();
+                }
                 break
             }
-            let c = self.char_at(end);
-            if c == character && escape_char_count % 2 == 0  {
+            let indice = self.char_indices[self.pos];
+            current_byte_offset = indice.0;
+            if indice.1 == delimiter && escape_char_count % 2 == 0  {
+                self.pos += 1;
                 break
-            } else if c == '\\' {
+            } else if indice.1 == '\\' {
                 escape_char_count += 1;
             } else {
                 escape_char_count = 0;
             }
-            end += 1;
+            self.pos += 1;
         }
-        end
+        current_byte_offset
     }
 
     pub fn lex(mut self) -> Sql {
@@ -83,36 +92,32 @@ impl SqlLexer {
             let token = match current_char {
                 // Back quoted
                 '`' => {
-                    let end = self.find_until(|c| c == '`');
-                    self.pos = end + 1;
-                    Token::Backticked(BufferSlice::new(current_byte_offset + 1, self.byte_offset(end)))
+                    let end_byte_offset = self.scan_for_delimiter_with_possible_escaping(current_byte_offset, '`');
+                    Token::Backticked(BufferSlice::new(current_byte_offset + 1, end_byte_offset))
                 },
                 // Single quoted
                 '\'' => {
-                    let end = self.find_until_delimiter_with_possible_escaping('\'');
-                    self.pos = end + 1;
-                    Token::SingleQuoted(BufferSlice::new(current_byte_offset + 1, self.byte_offset(end)))
+                    let end_byte_offset = self.scan_for_delimiter_with_possible_escaping(current_byte_offset, '\'');
+                    Token::SingleQuoted(BufferSlice::new(current_byte_offset + 1, end_byte_offset))
                 },
                 // Double quoted
                 '"' => {
-                    let end = self.find_until_delimiter_with_possible_escaping('"');
-                    self.pos = end + 1;
-                    Token::DoubleQuoted(BufferSlice::new(current_byte_offset + 1, self.byte_offset(end)))
+                    let end_byte_offset = self.scan_for_delimiter_with_possible_escaping(current_byte_offset, '"');
+                    Token::DoubleQuoted(BufferSlice::new(current_byte_offset + 1, end_byte_offset))
                 },
                 // Pound comment
                 '#' => {
-                    let end = self.find_until(|c| c == '\n' || c == '\r');
-                    self.pos = end;
-                    Token::Comment(BufferSlice::new(current_byte_offset, end))
+                    let end_byte_offset = self.scan_until(current_byte_offset, |c| c == '\n' || c == '\r');
+                    Token::Comment(BufferSlice::new(current_byte_offset, end_byte_offset))
                 },
                 // Double dash comment
                 '-' if self.pos + 1 < self.len && self.char_at(self.pos + 1) == '-' => {
-                    let end = self.find_until(|c| c == '\n' || c == '\r');
-                    self.pos = end;
-                    Token::Comment(BufferSlice::new(current_byte_offset, end))
+                    let end_byte_offset = self.scan_until(current_byte_offset, |c| c == '\n' || c == '\r');
+                    Token::Comment(BufferSlice::new(current_byte_offset, end_byte_offset))
                 },
                 // Multi line comment
                 '/' if self.pos + 1 < self.len && self.char_at(self.pos + 1) == '*' => {
+                    // TODO port to new way
                     let mut end = self.pos + 2;
                     loop {
                         if end >= self.len || (self.char_at(end) == '/' && self.char_at(end - 1) == '*') {
@@ -162,9 +167,8 @@ impl SqlLexer {
                     Token::Placeholder
                 },
                 '$' => {
-                    let end = self.find_until(|c| !c.is_numeric() );
-                    self.pos = end;
-                    Token::NumberedPlaceholder(BufferSlice::new(current_byte_offset, end))
+                    let end_byte_offset = self.scan_until(current_byte_offset, |c| !c.is_numeric() );
+                    Token::NumberedPlaceholder(BufferSlice::new(current_byte_offset, end_byte_offset))
                 },
                 // Arithmetic operators
                 '*' => {
@@ -192,15 +196,13 @@ impl SqlLexer {
                 },
                 // Comparison and bitwise operators
                 '=' | '!' | '>' | '<' | '&' | '|' => {
-                    let start = self.pos;
-                    let end = self.find_until(|c| {
+                    let end_byte_offset = self.scan_until(current_byte_offset, |c| {
                         match c {
                             '=' | '!' | '>' | '<' => false,
                             _ => true
                         }
                     });
-                    self.pos = end;
-                    match &self.buf[start..end] {
+                    match &self.buf[current_byte_offset..end_byte_offset] {
                         // Comparison
                         "<=>" => Token::Operator(Operator::Comparison(ComparisonOperator::NullSafeEqual)),
                         ">=" => Token::Operator(Operator::Comparison(ComparisonOperator::GreaterThanOrEqual)),
@@ -223,7 +225,7 @@ impl SqlLexer {
                 },
                 // Logical operators and keywords
                 c if c.is_alphabetic() => {
-                    let end = self.find_until(|c| {
+                    let end_byte_offset = self.scan_until(current_byte_offset, |c| {
                         match c {
                             '_' => false,
                             '-' => false,
@@ -232,8 +234,7 @@ impl SqlLexer {
                             _ => true
                         }
                     });
-                    self.pos = end;
-                    match &self.buf[current_byte_offset..end] {
+                    match &self.buf[current_byte_offset..end_byte_offset] {
                         // Keywords
                         "SELECT" | "select" => {
                             self.state = State::PastSelect;
@@ -266,20 +267,19 @@ impl SqlLexer {
                         "MATCH" | "match" => Token::Operator(Operator::Logical(LogicalOperator::Match)),
                         "REGEXP" | "regexp" => Token::Operator(Operator::Logical(LogicalOperator::Regexp)),
                         // Other keyword
-                        _ => Token::Keyword(Keyword::Other(BufferSlice::new(current_byte_offset, end)))
+                        _ => Token::Keyword(Keyword::Other(BufferSlice::new(current_byte_offset, end_byte_offset)))
                     }
                 },
                 // Numeric
                 c if c.is_numeric() => {
-                    let end = self.find_until(|c| {
+                    let end_byte_offset = self.scan_until(current_byte_offset, |c| {
                         match c {
                             '.' => false,
                             c if c.is_numeric() => false,
                             _ => true
                         }
                     });
-                    self.pos = end;
-                    Token::Numeric(BufferSlice::new(current_byte_offset, end))
+                    Token::Numeric(BufferSlice::new(current_byte_offset, end_byte_offset))
                 },
                 // Unknown
                 c => {
@@ -548,6 +548,38 @@ mod tests {
     }
 
     #[test]
+    fn test_comparison_operators_end_of_line() {
+        let sql = "= == <=> >= <= => =< <> != > <".to_string();
+        let lexer = SqlLexer::new(sql);
+
+        let expected = vec![
+            Token::Operator(Operator::Comparison(ComparisonOperator::Equal)),
+            Token::Space,
+            Token::Operator(Operator::Comparison(ComparisonOperator::Equal2)),
+            Token::Space,
+            Token::Operator(Operator::Comparison(ComparisonOperator::NullSafeEqual)),
+            Token::Space,
+            Token::Operator(Operator::Comparison(ComparisonOperator::GreaterThanOrEqual)),
+            Token::Space,
+            Token::Operator(Operator::Comparison(ComparisonOperator::LessThanOrEqual)),
+            Token::Space,
+            Token::Operator(Operator::Comparison(ComparisonOperator::EqualOrGreaterThan)),
+            Token::Space,
+            Token::Operator(Operator::Comparison(ComparisonOperator::EqualOrLessThan)),
+            Token::Space,
+            Token::Operator(Operator::Comparison(ComparisonOperator::EqualWithArrows)),
+            Token::Space,
+            Token::Operator(Operator::Comparison(ComparisonOperator::NotEqual)),
+            Token::Space,
+            Token::Operator(Operator::Comparison(ComparisonOperator::GreaterThan)),
+            Token::Space,
+            Token::Operator(Operator::Comparison(ComparisonOperator::LessThan))
+        ];
+
+        assert_eq!(lexer.lex().tokens, expected);
+    }
+
+    #[test]
     fn test_bitwise_operators() {
         let sql = "<< >> & |;".to_string();
         let lexer = SqlLexer::new(sql);
@@ -561,6 +593,24 @@ mod tests {
             Token::Space,
             Token::Operator(Operator::Bitwise(BitwiseOperator::Or)),
             Token::Semicolon
+        ];
+
+        assert_eq!(lexer.lex().tokens, expected);
+    }
+
+    #[test]
+    fn test_bitwise_operator_end_of_line() {
+        let sql = "<< >> & |".to_string();
+        let lexer = SqlLexer::new(sql);
+
+        let expected = vec![
+            Token::Operator(Operator::Bitwise(BitwiseOperator::LeftShift)),
+            Token::Space,
+            Token::Operator(Operator::Bitwise(BitwiseOperator::RightShift)),
+            Token::Space,
+            Token::Operator(Operator::Bitwise(BitwiseOperator::And)),
+            Token::Space,
+            Token::Operator(Operator::Bitwise(BitwiseOperator::Or))
         ];
 
         assert_eq!(lexer.lex().tokens, expected);
@@ -611,7 +661,7 @@ mod tests {
 
     #[test]
     fn test_known_keywords_lowercase() {
-        let sql = "select from where and or update set insert into values inner join on limit offset between;".to_string();
+        let sql = "select from where and or update set insert into values inner join on limit offset between".to_string();
         let lexer = SqlLexer::new(sql);
 
         let expected = vec![
@@ -645,8 +695,7 @@ mod tests {
             Token::Space,
             Token::Keyword(Keyword::Offset),
             Token::Space,
-            Token::Keyword(Keyword::Between),
-            Token::Semicolon
+            Token::Keyword(Keyword::Between)
         ];
 
         assert_eq!(lexer.lex().tokens, expected);
@@ -662,6 +711,18 @@ mod tests {
             Token::Space,
             Token::Keyword(Keyword::From),
             Token::Semicolon
+        ];
+
+        assert_eq!(lexer.lex().tokens, expected);
+    }
+
+    #[test]
+    fn test_obscure_keyword_end_of_line() {
+        let sql = "OBSCURE".to_string();
+        let lexer = SqlLexer::new(sql);
+
+        let expected = vec![
+            Token::Keyword(Keyword::Other(BufferSlice::new(0, 7)))
         ];
 
         assert_eq!(lexer.lex().tokens, expected);
@@ -694,6 +755,17 @@ mod tests {
             Token::Space,
             Token::DoubleQuoted(BufferSlice::new(16, 25)),
             Token::Semicolon
+        ];
+
+        assert_eq!(lexer.lex().tokens, expected);
+    }
+
+    #[test]
+    fn test_quoted_missing_delimiter() {
+        let sql = "\"val\\\"ue".to_string();
+        let lexer = SqlLexer::new(sql);
+        let expected = vec![
+            Token::DoubleQuoted(BufferSlice::new(1, 8))
         ];
 
         assert_eq!(lexer.lex().tokens, expected);
@@ -734,6 +806,23 @@ mod tests {
             Token::Space,
             Token::NumberedPlaceholder(BufferSlice::new(8, 11)),
             Token::Semicolon
+        ];
+
+        assert_eq!(lexer.lex().tokens, expected);
+    }
+
+    #[test]
+    fn test_placeholders_end_of_line() {
+        let sql = "? $1 $2 $23".to_string();
+        let lexer = SqlLexer::new(sql);
+        let expected = vec![
+            Token::Placeholder,
+            Token::Space,
+            Token::NumberedPlaceholder(BufferSlice::new(2, 4)),
+            Token::Space,
+            Token::NumberedPlaceholder(BufferSlice::new(5, 7)),
+            Token::Space,
+            Token::NumberedPlaceholder(BufferSlice::new(8, 11))
         ];
 
         assert_eq!(lexer.lex().tokens, expected);
