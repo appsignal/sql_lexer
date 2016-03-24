@@ -33,7 +33,7 @@ impl SqlLexer {
         self.char_indices[pos].1
     }
 
-    fn scan_until<F>(&mut self, mut current_byte_offset: usize, at_end_function: F) -> usize where F: Fn(char) -> bool {
+    fn scan_until<F>(&mut self, mut current_byte_offset: usize, at_end_function: F) -> usize where F: Fn(&SqlLexer, char) -> bool {
         self.pos += 1;
         loop {
             if self.pos >= self.len {
@@ -45,7 +45,7 @@ impl SqlLexer {
             }
             let indice = self.char_indices[self.pos];
             current_byte_offset = indice.0;
-            if at_end_function(indice.1) {
+            if at_end_function(&self, indice.1) {
                 break
             }
             self.pos += 1;
@@ -107,27 +107,22 @@ impl SqlLexer {
                 },
                 // Pound comment
                 '#' => {
-                    let end_byte_offset = self.scan_until(current_byte_offset, |c| c == '\n' || c == '\r');
+                    let end_byte_offset = self.scan_until(current_byte_offset, |_, c| c == '\n' || c == '\r');
                     Token::Comment(BufferSlice::new(current_byte_offset, end_byte_offset))
                 },
                 // Double dash comment
                 '-' if self.pos + 1 < self.len && self.char_at(self.pos + 1) == '-' => {
-                    let end_byte_offset = self.scan_until(current_byte_offset, |c| c == '\n' || c == '\r');
+                    let end_byte_offset = self.scan_until(current_byte_offset, |_, c| c == '\n' || c == '\r');
                     Token::Comment(BufferSlice::new(current_byte_offset, end_byte_offset))
                 },
                 // Multi line comment
                 '/' if self.pos + 1 < self.len && self.char_at(self.pos + 1) == '*' => {
-                    // TODO port to new way
-                    let mut end = self.pos + 2;
-                    loop {
-                        if end >= self.len || (self.char_at(end) == '/' && self.char_at(end - 1) == '*') {
-                            break
-                        }
-                        end += 1;
-                    }
-                    end += 1;
-                    self.pos = end;
-                    Token::Comment(BufferSlice::new(current_byte_offset, end))
+                    let end_byte_offset = self.scan_until(current_byte_offset, |lexer, _| {
+                        lexer.pos > 1 &&
+                            lexer.char_at(lexer.pos -2) == '*' &&
+                            lexer.char_at(lexer.pos -1) == '/'
+                    });
+                    Token::Comment(BufferSlice::new(current_byte_offset, end_byte_offset))
                 },
                 // Generic tokens
                 ' ' => {
@@ -167,7 +162,7 @@ impl SqlLexer {
                     Token::Placeholder
                 },
                 '$' => {
-                    let end_byte_offset = self.scan_until(current_byte_offset, |c| !c.is_numeric() );
+                    let end_byte_offset = self.scan_until(current_byte_offset, |_, c| !c.is_numeric() );
                     Token::NumberedPlaceholder(BufferSlice::new(current_byte_offset, end_byte_offset))
                 },
                 // Arithmetic operators
@@ -196,7 +191,7 @@ impl SqlLexer {
                 },
                 // Comparison and bitwise operators
                 '=' | '!' | '>' | '<' | '&' | '|' => {
-                    let end_byte_offset = self.scan_until(current_byte_offset, |c| {
+                    let end_byte_offset = self.scan_until(current_byte_offset, |_, c| {
                         match c {
                             '=' | '!' | '>' | '<' => false,
                             _ => true
@@ -225,7 +220,7 @@ impl SqlLexer {
                 },
                 // Logical operators and keywords
                 c if c.is_alphabetic() => {
-                    let end_byte_offset = self.scan_until(current_byte_offset, |c| {
+                    let end_byte_offset = self.scan_until(current_byte_offset, |_, c| {
                         match c {
                             '_' => false,
                             '-' => false,
@@ -272,7 +267,7 @@ impl SqlLexer {
                 },
                 // Numeric
                 c if c.is_numeric() => {
-                    let end_byte_offset = self.scan_until(current_byte_offset, |c| {
+                    let end_byte_offset = self.scan_until(current_byte_offset, |_, c| {
                         match c {
                             '.' => false,
                             c if c.is_numeric() => false,
