@@ -44,7 +44,7 @@ impl SqlSanitizer {
                 Token::Comma if state == State::InsertValues => (),
                 Token::Dot if state == State::JoinOn => (),
                 // This is content we might want to sanitize
-                Token::SingleQuoted(_) | Token::DoubleQuoted(_) | Token::Numeric(_) => {
+                Token::SingleQuoted(_) | Token::DoubleQuoted(_) | Token::Numeric(_) | Token::Null => {
                     match state {
                         State::ComparisonOperator | State::Offset | State::Between => {
                             // We're after a comparison operator, offset or between/and, so insert placeholder.
@@ -288,6 +288,14 @@ mod tests {
         assert_eq!(
             sanitize_string("INSERT INTO \"table\" (\"field1\", \"field2\") VALUES ('value', 1) RETURNING \"id\";".to_string()),
             "INSERT INTO \"table\" (\"field1\", \"field2\") VALUES (?, ?) RETURNING \"id\";"
+        );
+    }
+
+    #[test]
+    fn test_insert_null() {
+        assert_eq!(
+            sanitize_string("INSERT INTO \"table\" (\"field1\", \"field2\") VALUES (NULL, 1);".to_string()),
+            "INSERT INTO \"table\" (\"field1\", \"field2\") VALUES (?, ?);"
         );
     }
 

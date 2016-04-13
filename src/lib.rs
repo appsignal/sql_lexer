@@ -112,6 +112,7 @@ pub enum Token {
     Colon,
     Semicolon,
     Placeholder,
+    Null,
     NumberedPlaceholder(BufferSlice),
     Unknown(char)
 }

@@ -104,6 +104,7 @@ impl SqlWriter {
                 &Token::Colon => out.push(':'),
                 &Token::Semicolon => out.push(';'),
                 &Token::Placeholder => out.push('?'),
+                &Token::Null => out.push_str("NULL"),
                 &Token::NumberedPlaceholder(ref slice) => {
                     out.push_str(self.sql.buffer_content(slice));
                 },
@@ -210,6 +211,14 @@ mod tests {
     #[test]
     fn test_write_placeholders() {
         let sql = "? $1 $2 $23";
+        let written = helpers::lex_and_write(sql.to_string());
+
+        assert_eq!(written, sql);
+    }
+
+    #[test]
+    fn test_null() {
+        let sql = "NULL";
         let written = helpers::lex_and_write(sql.to_string());
 
         assert_eq!(written, sql);

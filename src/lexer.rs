@@ -261,6 +261,8 @@ impl SqlLexer {
                         "GLOB" | "glob" => Token::Operator(Operator::Logical(LogicalOperator::Glob)),
                         "MATCH" | "match" => Token::Operator(Operator::Logical(LogicalOperator::Match)),
                         "REGEXP" | "regexp" => Token::Operator(Operator::Logical(LogicalOperator::Regexp)),
+                        // Null
+                        "NULL" | "null" => Token::Null,
                         // Other keyword
                         _ => Token::Keyword(Keyword::Other(BufferSlice::new(current_byte_offset, end_byte_offset)))
                     }
@@ -818,6 +820,19 @@ mod tests {
             Token::NumberedPlaceholder(BufferSlice::new(5, 7)),
             Token::Space,
             Token::NumberedPlaceholder(BufferSlice::new(8, 11))
+        ];
+
+        assert_eq!(lexer.lex().tokens, expected);
+    }
+
+    #[test]
+    fn test_null() {
+        let sql = "NULL null".to_string();
+        let lexer = SqlLexer::new(sql);
+        let expected = vec![
+            Token::Null,
+            Token::Space,
+            Token::Null
         ];
 
         assert_eq!(lexer.lex().tokens, expected);
