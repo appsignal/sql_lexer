@@ -284,6 +284,14 @@ mod tests {
     }
 
     #[test]
+    fn test_insert_returning() {
+        assert_eq!(
+            sanitize_string("INSERT INTO \"table\" (\"field1\", \"field2\") VALUES ('value', 1) RETURNING \"id\";".to_string()),
+            "INSERT INTO \"table\" (\"field1\", \"field2\") VALUES (?, ?) RETURNING \"id\";"
+        );
+    }
+
+    #[test]
     fn test_comment_pound() {
         assert_eq!(
             sanitize_string("SELECT * FROM table # This is a comment".to_string()),
