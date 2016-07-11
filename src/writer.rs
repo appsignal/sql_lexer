@@ -64,6 +64,7 @@ impl SqlWriter {
                 &Token::Keyword(Keyword::Limit) => out.push_str("LIMIT"),
                 &Token::Keyword(Keyword::Offset) => out.push_str("OFFSET"),
                 &Token::Keyword(Keyword::Between) => out.push_str("BETWEEN"),
+                &Token::Keyword(Keyword::Array) => out.push_str("ARRAY"),
                 &Token::Keyword(Keyword::Other(ref slice)) => {
                     out.push_str(self.sql.buffer_content(slice));
                 },
@@ -101,6 +102,8 @@ impl SqlWriter {
                 &Token::Wildcard => out.push('*'),
                 &Token::ParentheseOpen => out.push('('),
                 &Token::ParentheseClose => out.push(')'),
+                &Token::SquareBracketOpen => out.push('['),
+                &Token::SquareBracketClose => out.push(']'),
                 &Token::Colon => out.push(':'),
                 &Token::Semicolon => out.push(';'),
                 &Token::Placeholder => out.push('?'),
@@ -145,8 +148,16 @@ mod tests {
     }
 
     #[test]
+    fn test_tokens() {
+        let sql = " . , * ( ) [ ] : ; ?";
+        let written = helpers::lex_and_write(sql.to_string());
+
+        assert_eq!(written, sql);
+    }
+
+    #[test]
     fn test_write_keywords() {
-        let sql = "SELECT FROM WHERE AND OR UPDATE SET INSERT INTO VALUES INNER JOIN ON OTHER LIMIT OFFSET BETWEEN";
+        let sql = "SELECT FROM WHERE AND OR UPDATE SET INSERT INTO VALUES INNER JOIN ON OTHER LIMIT OFFSET BETWEEN ARRAY";
         let written = helpers::lex_and_write(sql.to_string());
 
         assert_eq!(written, sql);
