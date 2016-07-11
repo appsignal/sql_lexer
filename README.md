@@ -25,6 +25,15 @@ fn main() {
 }
 ```
 
+## Command line
+
+There's a utitily included to sanitize a sql query in a file to
+facilitate testing:
+
+```
+cargo run -- <path-to-file>
+```
+
 ## License
 
 Licensed under either of
