@@ -8,7 +8,9 @@ enum State {
     InsertValues,
     JoinOn,
     Offset,
-    Between
+    Between,
+    Array,
+    ArrayStarted
 }
 
 pub struct SqlSanitizer {
@@ -38,9 +40,11 @@ impl SqlSanitizer {
                 Token::Keyword(Keyword::On) => state = State::JoinOn,
                 Token::Keyword(Keyword::Offset) => state = State::Offset,
                 Token::Keyword(Keyword::Between) => state = State::Between,
+                Token::Keyword(Keyword::Array) => state = State::Array,
                 Token::Keyword(Keyword::And) if state == State::Between => (),
                 Token::ParentheseOpen if state == State::ComparisonOperator => state = State::ComparisonScopeStarted,
                 Token::ParentheseOpen if state == State::InsertValues => (),
+                Token::SquareBracketOpen if state == State::Array => state = State::ArrayStarted,
                 Token::Comma if state == State::InsertValues => (),
                 Token::Dot if state == State::JoinOn => (),
                 // This is content we might want to sanitize
@@ -50,8 +54,8 @@ impl SqlSanitizer {
                             // We're after a comparison operator, offset or between/and, so insert placeholder.
                             self.placeholder(pos);
                         },
-                        State::ComparisonScopeStarted => {
-                            // We're in an IN () and it starts with content. Remove everything until
+                        State::ComparisonScopeStarted | State::ArrayStarted => {
+                            // We're in an IN () or ARRAY[] and it starts with content. Remove everything until
                             // the closing parenthese and put one placeholder in between.
                             let start_pos = pos;
                             loop {
@@ -60,6 +64,7 @@ impl SqlSanitizer {
                                 }
                                 match self.sql.tokens[pos] {
                                     Token::ParentheseClose => break,
+                                    Token::SquareBracketClose => break,
                                     _ => self.remove(pos)
                                 }
                             }
@@ -208,6 +213,14 @@ mod tests {
         assert_eq!(
             sanitize_string("SELECT `table`.* FROM `table` WHERE `id` IN (SELECT `id` FROM `something` WHERE `a` = 1) LIMIT 1;".to_string()),
             "SELECT `table`.* FROM `table` WHERE `id` IN (SELECT `id` FROM `something` WHERE `a` = ?) LIMIT 1;"
+        );
+    }
+
+    #[test]
+    fn test_select_array() {
+        assert_eq!(
+            sanitize_string("SELECT * FROM \"table\" WHERE \"field\" = ARRAY['item_1','item_2','item_3'];".to_string()),
+            "SELECT * FROM \"table\" WHERE \"field\" = ARRAY[?];"
         );
     }
 

@@ -149,6 +149,14 @@ impl SqlLexer {
                     self.pos += 1;
                     Token::ParentheseClose
                 },
+                '[' => {
+                    self.pos += 1;
+                    Token::SquareBracketOpen
+                },
+                ']' => {
+                    self.pos += 1;
+                    Token::SquareBracketClose
+                },
                 ':' => {
                     self.pos += 1;
                     Token::Colon
@@ -253,6 +261,7 @@ impl SqlLexer {
                         "LIMIT" | "limit" => Token::Keyword(Keyword::Limit),
                         "OFFSET" | "offset" => Token::Keyword(Keyword::Offset),
                         "BETWEEN" | "between" => Token::Keyword(Keyword::Between),
+                        "ARRAY" | "array" => Token::Keyword(Keyword::Array),
                         // Logical operators
                         "IN" | "in" => Token::Operator(Operator::Logical(LogicalOperator::In)),
                         "NOT" | "not" => Token::Operator(Operator::Logical(LogicalOperator::Not)),
@@ -428,6 +437,39 @@ mod tests {
             Token::Numeric(BufferSlice::new(41, 42)),
             Token::ParentheseClose,
             Token::Semicolon
+        ];
+
+        assert_eq!(lexer.lex().tokens, expected);
+    }
+
+    #[test]
+    fn test_array_query() {
+        let sql = "SELECT * FROM \"table\" WHERE \"field\" = ARRAY['item_1','item_2','item_3']".to_string();
+        let lexer = SqlLexer::new(sql);
+
+        let expected = vec![
+            Token::Keyword(Keyword::Select),
+            Token::Space,
+            Token::Wildcard,
+            Token::Space,
+            Token::Keyword(Keyword::From),
+            Token::Space,
+            Token::DoubleQuoted(BufferSlice::new(15, 20)),
+            Token::Space,
+            Token::Keyword(Keyword::Where),
+            Token::Space,
+            Token::DoubleQuoted(BufferSlice::new(29, 34)),
+            Token::Space,
+            Token::Operator(Operator::Comparison(ComparisonOperator::Equal)),
+            Token::Space,
+            Token::Keyword(Keyword::Array),
+            Token::SquareBracketOpen,
+            Token::SingleQuoted(BufferSlice::new(45, 51)),
+            Token::Comma,
+            Token::SingleQuoted(BufferSlice::new(54, 60)),
+            Token::Comma,
+            Token::SingleQuoted(BufferSlice::new(63, 69)),
+            Token::SquareBracketClose
         ];
 
         assert_eq!(lexer.lex().tokens, expected);

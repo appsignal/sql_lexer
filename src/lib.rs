@@ -24,6 +24,7 @@ pub enum Keyword {
     Limit,   // LIMIT
     Offset,  // OFFSET
     Between, // BETWEEN
+    Array,   // ARRAY
     Other(BufferSlice)
 }
 
@@ -109,6 +110,8 @@ pub enum Token {
     Wildcard,
     ParentheseOpen,
     ParentheseClose,
+    SquareBracketOpen,
+    SquareBracketClose,
     Colon,
     Semicolon,
     Placeholder,
