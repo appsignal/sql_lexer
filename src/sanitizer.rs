@@ -9,6 +9,8 @@ enum State {
     JoinOn,
     Offset,
     Between,
+    Keyword,
+    KeywordScopeStarted,
     Array,
     ArrayStarted,
     LiteralValueTypeIndicator
@@ -43,17 +45,24 @@ impl SqlSanitizer {
                 Token::Keyword(Keyword::Between) => state = State::Between,
                 Token::Keyword(Keyword::Array) => state = State::Array,
                 Token::Keyword(Keyword::And) if state == State::Between => (),
+                Token::Keyword(Keyword::Insert) | Token::Keyword(Keyword::Into) => (),
+                Token::Keyword(_) => state = State::Keyword,
                 Token::LiteralValueTypeIndicator(_) => state = State::LiteralValueTypeIndicator,
                 Token::ParentheseOpen if state == State::ComparisonOperator => state = State::ComparisonScopeStarted,
+                Token::ParentheseOpen if state == State::Keyword => state = State::KeywordScopeStarted,
                 Token::ParentheseOpen if state == State::InsertValues => (),
                 Token::SquareBracketOpen if state == State::Array => state = State::ArrayStarted,
-                Token::Comma if state == State::InsertValues => (),
+                Token::ParentheseClose | Token::SquareBracketClose => state = State::Default,
                 Token::Dot if state == State::JoinOn => (),
                 // This is content we might want to sanitize
                 Token::SingleQuoted(_) | Token::DoubleQuoted(_) | Token::Numeric(_) | Token::Null => {
                     match state {
-                        State::ComparisonOperator | State::Offset | State::Between | State::LiteralValueTypeIndicator => {
-                            // We're after a comparison operator, offset or between/and, so insert placeholder.
+                        State::ComparisonOperator |
+                        State::InsertValues |
+                        State::Offset |
+                        State::KeywordScopeStarted |
+                        State::Between |
+                        State::LiteralValueTypeIndicator=> {
                             self.placeholder(pos);
                         },
                         State::ComparisonScopeStarted | State::ArrayStarted => {
@@ -71,11 +80,7 @@ impl SqlSanitizer {
                                 }
                             }
                             self.sql.tokens.insert(start_pos, Token::Placeholder);
-                        },
-                        State::InsertValues => {
-                            // We're in an insert block, insert placeholder.
-                            self.placeholder(pos);
-                        },
+                        }
                         _ => ()
                     }
                 },
@@ -90,6 +95,8 @@ impl SqlSanitizer {
                 },
                 // Spaces don't influence the state by default
                 Token::Space => (),
+                // Keep state the same if we're in a insert values or keyword scope state
+                _ if state == State::InsertValues || state == State::KeywordScopeStarted => (),
                 // Reset state to default if there were no matches
                 _ => state = State::Default
             }
@@ -143,6 +150,38 @@ mod tests {
         assert_eq!(
             sanitize_string("SELECT `table`.* FROM `table` WHERE `id` = 1 LIMIT 1;".to_string()),
             "SELECT `table`.* FROM `table` WHERE `id` = ? LIMIT 1;"
+        );
+    }
+
+    #[test]
+    fn test_select_where_with_function() {
+        assert_eq!(
+            sanitize_string("SELECT `table`.* FROM `table` WHERE `name` = UPPERCASE('lower') LIMIT 1;".to_string()),
+            "SELECT `table`.* FROM `table` WHERE `name` = UPPERCASE(?) LIMIT 1;"
+        );
+    }
+
+    #[test]
+    fn test_select_where_with_function_multiple_args() {
+        assert_eq!(
+            sanitize_string("SELECT `table`.* FROM `table` WHERE `name` = COMMAND('table', 'lower') LIMIT 1;".to_string()),
+            "SELECT `table`.* FROM `table` WHERE `name` = COMMAND(?, ?) LIMIT 1;"
+        );
+    }
+
+    #[test]
+    fn test_select_where_with_function_mixed_args() {
+        assert_eq!(
+            sanitize_string("SELECT `table`.* FROM `table` WHERE `name` = COMMAND(`table`, 'lower') LIMIT 1;".to_string()),
+            "SELECT `table`.* FROM `table` WHERE `name` = COMMAND(`table`, ?) LIMIT 1;"
+        );
+    }
+
+    #[test]
+    fn test_select_where_with_nested_function() {
+        assert_eq!(
+            sanitize_string("SELECT `table`.* FROM `table` WHERE `name` = LOWERCASE(UPPERCASE('lower')) LIMIT 1;".to_string()),
+            "SELECT `table`.* FROM `table` WHERE `name` = LOWERCASE(UPPERCASE(?)) LIMIT 1;"
         );
     }
 
