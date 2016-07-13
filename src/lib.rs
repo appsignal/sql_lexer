@@ -80,6 +80,19 @@ pub enum BitwiseOperator {
 }
 
 #[derive(Debug,PartialEq)]
+pub enum LiteralValueTypeIndicator {
+    Date,                // DATE
+    Time,                // TIME
+    Timestamp,           // TIMESTAMP
+    X,                   // Hexadecimal literal
+    ZeroX,               // Hexadecimal literal
+    B,                   // Bit field
+    ZeroB,               // Bit field
+    N,                   // National character set
+    Charset(BufferSlice) // Character set
+}
+
+#[derive(Debug,PartialEq)]
 pub struct BufferSlice {
     pub start: usize,
     pub end: usize
@@ -98,6 +111,7 @@ impl BufferSlice {
 pub enum Token {
     Operator(Operator),
     Keyword(Keyword),
+    LiteralValueTypeIndicator(LiteralValueTypeIndicator),
     Backticked(BufferSlice),
     DoubleQuoted(BufferSlice),
     SingleQuoted(BufferSlice),

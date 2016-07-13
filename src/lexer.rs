@@ -1,4 +1,4 @@
-use super::{Sql,Operator,ArithmeticOperator,BitwiseOperator,ComparisonOperator,LogicalOperator,BufferSlice,Token,Keyword};
+use super::{LiteralValueTypeIndicator,Sql,Operator,ArithmeticOperator,BitwiseOperator,ComparisonOperator,LogicalOperator,BufferSlice,Token,Keyword};
 
 #[derive(Clone,PartialEq)]
 enum State {
@@ -226,6 +226,17 @@ impl SqlLexer {
                         _ => break
                     }
                 },
+                // Charset literal value type indicator
+                '_' => {
+                    let end_byte_offset = self.scan_until(current_byte_offset, |_, c| {
+                        match c {
+                            c if c.is_alphabetic() => false,
+                            c if c.is_numeric() => false,
+                            _ => true
+                        }
+                    });
+                    Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::Charset(BufferSlice::new(current_byte_offset + 1, end_byte_offset)))
+                },
                 // Logical operators and keywords
                 c if c.is_alphabetic() => {
                     let end_byte_offset = self.scan_until(current_byte_offset, |_, c| {
@@ -270,6 +281,13 @@ impl SqlLexer {
                         "GLOB" | "glob" => Token::Operator(Operator::Logical(LogicalOperator::Glob)),
                         "MATCH" | "match" => Token::Operator(Operator::Logical(LogicalOperator::Match)),
                         "REGEXP" | "regexp" => Token::Operator(Operator::Logical(LogicalOperator::Regexp)),
+                        // Some of the literal value type indicators
+                        "DATE" | "date" => Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::Date),
+                        "TIME" | "time" => Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::Time),
+                        "TIMESTAMP" | "timestamp" => Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::Timestamp),
+                        "X" | "x" => Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::X),
+                        "B" | "b" => Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::B),
+                        "N" | "n" => Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::N),
                         // Null
                         "NULL" | "null" => Token::Null,
                         // Other keyword
@@ -281,11 +299,16 @@ impl SqlLexer {
                     let end_byte_offset = self.scan_until(current_byte_offset, |_, c| {
                         match c {
                             '.' => false,
+                            'x' | 'X' | 'b' | 'B' => false,
                             c if c.is_numeric() => false,
                             _ => true
                         }
                     });
-                    Token::Numeric(BufferSlice::new(current_byte_offset, end_byte_offset))
+                    match &self.buf[current_byte_offset..end_byte_offset] {
+                        "0X" | "0x" => Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::ZeroX),
+                        "0B" | "0b" => Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::ZeroB),
+                        _ => Token::Numeric(BufferSlice::new(current_byte_offset, end_byte_offset))
+                    }
                 },
                 // Unknown
                 c => {
@@ -307,7 +330,7 @@ impl SqlLexer {
 #[cfg(test)]
 mod tests {
     use super::SqlLexer;
-    use super::super::{Token,Operator,ArithmeticOperator,BitwiseOperator,ComparisonOperator,LogicalOperator,BufferSlice,Keyword};
+    use super::super::{Token,LiteralValueTypeIndicator,Operator,ArithmeticOperator,BitwiseOperator,ComparisonOperator,LogicalOperator,BufferSlice,Keyword};
 
     #[test]
     fn test_single_quoted_query() {
@@ -762,6 +785,61 @@ mod tests {
 
         let expected = vec![
             Token::Keyword(Keyword::Other(BufferSlice::new(0, 7)))
+        ];
+
+        assert_eq!(lexer.lex().tokens, expected);
+    }
+
+    #[test]
+    fn test_literal_value_type_indicator_uppercase() {
+        let sql = "DATE TIME TIMESTAMP X 0X B 0B N".to_string();
+        let lexer = SqlLexer::new(sql);
+
+        let expected = vec![
+            Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::Date),
+            Token::Space,
+            Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::Time),
+            Token::Space,
+            Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::Timestamp),
+            Token::Space,
+            Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::X),
+            Token::Space,
+            Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::ZeroX),
+            Token::Space,
+            Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::B),
+            Token::Space,
+            Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::ZeroB),
+            Token::Space,
+            Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::N),
+        ];
+
+        assert_eq!(lexer.lex().tokens, expected);
+    }
+
+
+    #[test]
+    fn test_literal_value_type_indicator_lowercase() {
+        let sql = "date time timestamp x 0x b 0b n _utf8".to_string();
+        let lexer = SqlLexer::new(sql);
+
+        let expected = vec![
+            Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::Date),
+            Token::Space,
+            Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::Time),
+            Token::Space,
+            Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::Timestamp),
+            Token::Space,
+            Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::X),
+            Token::Space,
+            Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::ZeroX),
+            Token::Space,
+            Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::B),
+            Token::Space,
+            Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::ZeroB),
+            Token::Space,
+            Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::N),
+            Token::Space,
+            Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::Charset(BufferSlice::new(33, 37)))
         ];
 
         assert_eq!(lexer.lex().tokens, expected);

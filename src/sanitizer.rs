@@ -10,7 +10,8 @@ enum State {
     Offset,
     Between,
     Array,
-    ArrayStarted
+    ArrayStarted,
+    LiteralValueTypeIndicator
 }
 
 pub struct SqlSanitizer {
@@ -42,6 +43,7 @@ impl SqlSanitizer {
                 Token::Keyword(Keyword::Between) => state = State::Between,
                 Token::Keyword(Keyword::Array) => state = State::Array,
                 Token::Keyword(Keyword::And) if state == State::Between => (),
+                Token::LiteralValueTypeIndicator(_) => state = State::LiteralValueTypeIndicator,
                 Token::ParentheseOpen if state == State::ComparisonOperator => state = State::ComparisonScopeStarted,
                 Token::ParentheseOpen if state == State::InsertValues => (),
                 Token::SquareBracketOpen if state == State::Array => state = State::ArrayStarted,
@@ -50,7 +52,7 @@ impl SqlSanitizer {
                 // This is content we might want to sanitize
                 Token::SingleQuoted(_) | Token::DoubleQuoted(_) | Token::Numeric(_) | Token::Null => {
                     match state {
-                        State::ComparisonOperator | State::Offset | State::Between => {
+                        State::ComparisonOperator | State::Offset | State::Between | State::LiteralValueTypeIndicator => {
                             // We're after a comparison operator, offset or between/and, so insert placeholder.
                             self.placeholder(pos);
                         },
@@ -86,7 +88,7 @@ impl SqlSanitizer {
                         continue;
                     }
                 },
-                // Spaces don't influence the state
+                // Spaces don't influence the state by default
                 Token::Space => (),
                 // Reset state to default if there were no matches
                 _ => state = State::Default
@@ -198,6 +200,30 @@ mod tests {
             sanitize_string("SELECT `posts`.* FROM `posts` WHERE (created_at >= '2016-01-10 13:34:46.647328' OR updated_at >= '2016-01-10 13:34:46.647328')".to_string()),
             "SELECT `posts`.* FROM `posts` WHERE (created_at >= ? OR updated_at >= ?)"
         );
+    }
+
+    #[test]
+    fn test_bitfield_modifier() {
+        assert_eq!(
+            sanitize_string("SELECT * FROM `posts` WHERE `field` = x'42'".to_string()),
+            "SELECT * FROM `posts` WHERE `field` = x?"
+        )
+    }
+
+    #[test]
+    fn test_date_modifier() {
+        assert_eq!(
+            sanitize_string("SELECT * FROM `posts` WHERE `field` = DATE 'str' AND `field2` = DATE'str'".to_string()),
+            "SELECT * FROM `posts` WHERE `field` = DATE ? AND `field2` = DATE?"
+        )
+    }
+
+    #[test]
+    fn test_string_modifier() {
+        assert_eq!(
+            sanitize_string("SELECT * FROM `posts` WHERE `field` = n'str' AND `field2` = _utf8'str'".to_string()),
+            "SELECT * FROM `posts` WHERE `field` = n? AND `field2` = _utf8?"
+        )
     }
 
     #[test]
