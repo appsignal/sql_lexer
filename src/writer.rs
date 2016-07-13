@@ -1,4 +1,4 @@
-use super::{Keyword,Token,Operator,ArithmeticOperator,ComparisonOperator,LogicalOperator,BitwiseOperator,Sql};
+use super::{Keyword,Token,LiteralValueTypeIndicator,Operator,ArithmeticOperator,ComparisonOperator,LogicalOperator,BitwiseOperator,Sql};
 
 pub struct SqlWriter {
     pub sql: Sql
@@ -68,6 +68,19 @@ impl SqlWriter {
                 &Token::Keyword(Keyword::Other(ref slice)) => {
                     out.push_str(self.sql.buffer_content(slice));
                 },
+                // Literal value type indicator
+                &Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::Date) => out.push_str("DATE"),
+                &Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::Time) => out.push_str("TIME"),
+                &Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::Timestamp) => out.push_str("TIMESTAMP"),
+                &Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::X) => out.push('x'),
+                &Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::ZeroX) => out.push_str("0x"),
+                &Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::B) => out.push('b'),
+                &Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::ZeroB) => out.push_str("0b"),
+                &Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::N) => out.push_str("n"),
+                &Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::Charset(ref slice)) => {
+                    out.push('_');
+                    out.push_str(self.sql.buffer_content(slice));
+                },
                 // Backticked
                 &Token::Backticked(ref slice) => {
                     out.push('`');
@@ -134,6 +147,14 @@ mod tests {
     #[test]
     fn test_write_double_quoted() {
         let sql = "SELECT \"table\".* FROM \"table\" WHERE \"id\" = 'secret';";
+        let written = helpers::lex_and_write(sql.to_string());
+
+        assert_eq!(written, sql);
+    }
+
+    #[test]
+    fn test_literal_value_type_indicator() {
+        let sql = "DATE TIME TIMESTAMP x 0x b 0b n _utf8";
         let written = helpers::lex_and_write(sql.to_string());
 
         assert_eq!(written, sql);
