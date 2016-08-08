@@ -26,6 +26,7 @@ impl SqlWriter {
                 &Token::Operator(Operator::Logical(LogicalOperator::In)) => out.push_str("IN"),
                 &Token::Operator(Operator::Logical(LogicalOperator::Not)) => out.push_str("NOT"),
                 &Token::Operator(Operator::Logical(LogicalOperator::Like)) => out.push_str("LIKE"),
+                &Token::Operator(Operator::Logical(LogicalOperator::Ilike)) => out.push_str("ILIKE"),
                 &Token::Operator(Operator::Logical(LogicalOperator::Rlike)) => out.push_str("RLIKE"),
                 &Token::Operator(Operator::Logical(LogicalOperator::Glob)) => out.push_str("GLOB"),
                 &Token::Operator(Operator::Logical(LogicalOperator::Match)) => out.push_str("MATCH"),
@@ -194,7 +195,7 @@ mod tests {
 
     #[test]
     fn test_write_logical_operators() {
-        let sql = "IN NOT LIKE RLIKE GLOB MATCH REGEXP";
+        let sql = "IN NOT LIKE ILIKE RLIKE GLOB MATCH REGEXP";
         let written = helpers::lex_and_write(sql.to_string());
 
         assert_eq!(written, sql);

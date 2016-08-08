@@ -186,6 +186,14 @@ mod tests {
     }
 
     #[test]
+    fn test_select_where_like() {
+        assert_eq!(
+            sanitize_string("SELECT `table`.* FROM `table` WHERE `id` LIKE 'value'".to_string()),
+            "SELECT `table`.* FROM `table` WHERE `id` LIKE ?"
+        );
+    }
+
+    #[test]
     fn test_select_limit_and_offset() {
         assert_eq!(
             sanitize_string("SELECT `table`.* FROM `table` LIMIT 10 OFFSET 5;".to_string()),

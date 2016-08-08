@@ -277,6 +277,7 @@ impl SqlLexer {
                         "IN" | "in" => Token::Operator(Operator::Logical(LogicalOperator::In)),
                         "NOT" | "not" => Token::Operator(Operator::Logical(LogicalOperator::Not)),
                         "LIKE" | "like" => Token::Operator(Operator::Logical(LogicalOperator::Like)),
+                        "ILIKE" | "ilike" => Token::Operator(Operator::Logical(LogicalOperator::Ilike)),
                         "RLIKE" | "rlike" => Token::Operator(Operator::Logical(LogicalOperator::Rlike)),
                         "GLOB" | "glob" => Token::Operator(Operator::Logical(LogicalOperator::Glob)),
                         "MATCH" | "match" => Token::Operator(Operator::Logical(LogicalOperator::Match)),
@@ -530,7 +531,7 @@ mod tests {
 
     #[test]
     fn test_logical_operators() {
-        let sql = "IN NOT LIKE RLIKE GLOB MATCH REGEXP".to_string();
+        let sql = "IN NOT LIKE ILIKE RLIKE GLOB MATCH REGEXP".to_string();
         let lexer = SqlLexer::new(sql);
 
         let expected = vec![
@@ -539,6 +540,8 @@ mod tests {
             Token::Operator(Operator::Logical(LogicalOperator::Not)),
             Token::Space,
             Token::Operator(Operator::Logical(LogicalOperator::Like)),
+            Token::Space,
+            Token::Operator(Operator::Logical(LogicalOperator::Ilike)),
             Token::Space,
             Token::Operator(Operator::Logical(LogicalOperator::Rlike)),
             Token::Space,
