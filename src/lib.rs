@@ -50,6 +50,7 @@ pub enum LogicalOperator {
     In,    // IN
     Not,   // NOT
     Like,  // LIKE
+    Ilike, // ILIKE
     Rlike, // RLIKE
     Glob,  // GLOB
     Match, // MATCH
