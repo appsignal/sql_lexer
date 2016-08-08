@@ -154,6 +154,14 @@ mod tests {
     }
 
     #[test]
+    fn test_select_where_numeric_negative() {
+        assert_eq!(
+            sanitize_string("SELECT `table`.* FROM `table` WHERE `id` = -1 LIMIT 1;".to_string()),
+            "SELECT `table`.* FROM `table` WHERE `id` = ? LIMIT 1;"
+        );
+    }
+
+    #[test]
     fn test_select_where_with_function() {
         assert_eq!(
             sanitize_string("SELECT `table`.* FROM `table` WHERE `name` = UPPERCASE('lower') LIMIT 1;".to_string()),
@@ -348,16 +356,16 @@ mod tests {
     #[test]
     fn test_insert_backquote_tables() {
         assert_eq!(
-            sanitize_string("INSERT INTO `table` (`field1`, `field2`) VALUES ('value', 1);".to_string()),
-            "INSERT INTO `table` (`field1`, `field2`) VALUES (?, ?);"
+            sanitize_string("INSERT INTO `table` (`field1`, `field2`) VALUES ('value', 1, -1.0, 'value');".to_string()),
+            "INSERT INTO `table` (`field1`, `field2`) VALUES (?, ?, ?, ?);"
         );
     }
 
     #[test]
     fn test_insert_doublequote_tables() {
         assert_eq!(
-            sanitize_string("INSERT INTO \"table\" (\"field1\", \"field2\") VALUES ('value', 1);".to_string()),
-            "INSERT INTO \"table\" (\"field1\", \"field2\") VALUES (?, ?);"
+            sanitize_string("INSERT INTO \"table\" (\"field1\", \"field2\") VALUES ('value', 1, -1.0, 'value');".to_string()),
+            "INSERT INTO \"table\" (\"field1\", \"field2\") VALUES (?, ?, ?, ?);"
         );
     }
 

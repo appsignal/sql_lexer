@@ -193,7 +193,7 @@ impl SqlLexer {
                     self.pos += 1;
                     Token::Operator(Operator::Arithmetic(ArithmeticOperator::Plus))
                 },
-                '-' => {
+                '-' if !(self.pos + 1 < self.len && self.char_at(self.pos +1).is_numeric()) => {
                     self.pos += 1;
                     Token::Operator(Operator::Arithmetic(ArithmeticOperator::Minus))
                 },
@@ -295,7 +295,7 @@ impl SqlLexer {
                     }
                 },
                 // Numeric
-                c if c.is_numeric() => {
+                c if c == '-' || c.is_numeric() => {
                     let end_byte_offset = self.scan_until(current_byte_offset, |_, c| {
                         match c {
                             '.' => false,
@@ -523,6 +523,24 @@ mod tests {
             Token::Space,
             Token::Operator(Operator::Arithmetic(ArithmeticOperator::Minus)),
             Token::Semicolon
+        ];
+
+        assert_eq!(lexer.lex().tokens, expected);
+    }
+
+    #[test]
+    fn test_numeric() {
+        let sql = "1 1.0 -1 -1.0".to_string();
+        let lexer = SqlLexer::new(sql);
+
+        let expected = vec![
+            Token::Numeric(BufferSlice::new(0, 1)),
+            Token::Space,
+            Token::Numeric(BufferSlice::new(2, 5)),
+            Token::Space,
+            Token::Numeric(BufferSlice::new(6, 8)),
+            Token::Space,
+            Token::Numeric(BufferSlice::new(9, 13))
         ];
 
         assert_eq!(lexer.lex().tokens, expected);
