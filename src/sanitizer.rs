@@ -274,6 +274,14 @@ mod tests {
     }
 
     #[test]
+    fn test_binary_modifier() {
+        assert_eq!(
+            sanitize_string("SELECT * FROM `posts` WHERE `field` = BINARY '123' and `field2` = BINARY'456' AND `field3` = BINARY 789".to_string()),
+            "SELECT * FROM `posts` WHERE `field` = BINARY ? AND `field2` = BINARY? AND `field3` = BINARY ?"
+        )
+    }
+
+    #[test]
     fn test_string_modifier() {
         assert_eq!(
             sanitize_string("SELECT * FROM `posts` WHERE `field` = n'str' AND `field2` = _utf8'str'".to_string()),

@@ -70,6 +70,7 @@ impl SqlWriter {
                     out.push_str(self.sql.buffer_content(slice));
                 },
                 // Literal value type indicator
+                &Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::Binary) => out.push_str("BINARY"),
                 &Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::Date) => out.push_str("DATE"),
                 &Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::Time) => out.push_str("TIME"),
                 &Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::Timestamp) => out.push_str("TIMESTAMP"),
