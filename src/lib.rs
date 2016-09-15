@@ -82,6 +82,7 @@ pub enum BitwiseOperator {
 
 #[derive(Debug,PartialEq)]
 pub enum LiteralValueTypeIndicator {
+    Binary,              // BINARAY
     Date,                // DATE
     Time,                // TIME
     Timestamp,           // TIMESTAMP
