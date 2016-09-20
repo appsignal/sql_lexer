@@ -6,6 +6,7 @@ enum State {
     ComparisonOperator,
     ComparisonScopeStarted,
     InsertValues,
+    InsertValuesJustClosed,
     JoinOn,
     Offset,
     Between,
@@ -52,6 +53,9 @@ impl SqlSanitizer {
                 Token::ParentheseOpen if state == State::Keyword => state = State::KeywordScopeStarted,
                 Token::ParentheseOpen if state == State::InsertValues => (),
                 Token::SquareBracketOpen if state == State::Array => state = State::ArrayStarted,
+                Token::ParentheseClose if state == State::InsertValues => state = State::InsertValuesJustClosed,
+                Token::Comma if state == State::InsertValuesJustClosed => (),
+                Token::ParentheseOpen if state == State::InsertValuesJustClosed => state = State::InsertValues,
                 Token::ParentheseClose | Token::SquareBracketClose => state = State::Default,
                 Token::Dot if state == State::JoinOn => (),
                 // This is content we might want to sanitize
@@ -382,6 +386,22 @@ mod tests {
         assert_eq!(
             sanitize_string("INSERT INTO \"table\" (\"field1\", \"field2\") VALUES ('value', 1, -1.0, 'value');".to_string()),
             "INSERT INTO \"table\" (\"field1\", \"field2\") VALUES (?, ?, ?, ?);"
+        );
+    }
+
+    #[test]
+    fn test_insert_multiple_values() {
+        assert_eq!(
+            sanitize_string("INSERT INTO `table` (`field1`, `field2`) VALUES ('value', 1, -1.0, 'value'),('value', 1, -1.0, 'value'),('value', 1, -1.0, 'value');".to_string()),
+            "INSERT INTO `table` (`field1`, `field2`) VALUES (?, ?, ?, ?),(?, ?, ?, ?),(?, ?, ?, ?);"
+        );
+    }
+
+    #[test]
+    fn test_insert_multiple_values_with_spaces() {
+        assert_eq!(
+            sanitize_string("INSERT INTO `table` (`field1`, `field2`) VALUES ('value', 1, -1.0, 'value'), ('value', 1, -1.0, 'value'), ('value', 1, -1.0, 'value');".to_string()),
+            "INSERT INTO `table` (`field1`, `field2`) VALUES (?, ?, ?, ?), (?, ?, ?, ?), (?, ?, ?, ?);"
         );
     }
 
