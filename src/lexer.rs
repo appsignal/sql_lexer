@@ -1,3 +1,5 @@
+use std::ascii::AsciiExt;
+
 use super::{LiteralValueTypeIndicator,Sql,Operator,ArithmeticOperator,BitwiseOperator,ComparisonOperator,LogicalOperator,BufferSlice,Token,Keyword};
 
 #[derive(Clone,PartialEq)]
@@ -250,48 +252,48 @@ impl SqlLexer {
                     });
                     match &self.buf[current_byte_offset..end_byte_offset] {
                         // Keywords
-                        "SELECT" | "select" => {
+                        s if s.eq_ignore_ascii_case("select") => {
                             self.state = State::PastSelect;
                             Token::Keyword(Keyword::Select)
                         },
-                        "FROM" | "from"=> {
+                        s if s.eq_ignore_ascii_case("from") => {
                             self.state = State::PastFrom;
                             Token::Keyword(Keyword::From)
                         },
-                        "WHERE" | "where" => Token::Keyword(Keyword::Where),
-                        "AND" | "and" => Token::Keyword(Keyword::And),
-                        "OR" | "or" => Token::Keyword(Keyword::Or),
-                        "UPDATE" | "update" => Token::Keyword(Keyword::Update),
-                        "SET" | "set" => Token::Keyword(Keyword::Set),
-                        "INSERT" | "insert" => Token::Keyword(Keyword::Insert),
-                        "INTO" | "into" => Token::Keyword(Keyword::Into),
-                        "VALUES" | "values" => Token::Keyword(Keyword::Values),
-                        "INNER" | "inner" => Token::Keyword(Keyword::Inner),
-                        "JOIN" | "join" => Token::Keyword(Keyword::Join),
-                        "ON" | "on" => Token::Keyword(Keyword::On),
-                        "LIMIT" | "limit" => Token::Keyword(Keyword::Limit),
-                        "OFFSET" | "offset" => Token::Keyword(Keyword::Offset),
-                        "BETWEEN" | "between" => Token::Keyword(Keyword::Between),
-                        "ARRAY" | "array" => Token::Keyword(Keyword::Array),
+                        s if s.eq_ignore_ascii_case("where") => Token::Keyword(Keyword::Where),
+                        s if s.eq_ignore_ascii_case("and") => Token::Keyword(Keyword::And),
+                        s if s.eq_ignore_ascii_case("or") => Token::Keyword(Keyword::Or),
+                        s if s.eq_ignore_ascii_case("update") => Token::Keyword(Keyword::Update),
+                        s if s.eq_ignore_ascii_case("set") => Token::Keyword(Keyword::Set),
+                        s if s.eq_ignore_ascii_case("insert") => Token::Keyword(Keyword::Insert),
+                        s if s.eq_ignore_ascii_case("into") => Token::Keyword(Keyword::Into),
+                        s if s.eq_ignore_ascii_case("values") => Token::Keyword(Keyword::Values),
+                        s if s.eq_ignore_ascii_case("inner") => Token::Keyword(Keyword::Inner),
+                        s if s.eq_ignore_ascii_case("join") => Token::Keyword(Keyword::Join),
+                        s if s.eq_ignore_ascii_case("on") => Token::Keyword(Keyword::On),
+                        s if s.eq_ignore_ascii_case("limit") => Token::Keyword(Keyword::Limit),
+                        s if s.eq_ignore_ascii_case("offset") => Token::Keyword(Keyword::Offset),
+                        s if s.eq_ignore_ascii_case("between") => Token::Keyword(Keyword::Between),
+                        s if s.eq_ignore_ascii_case("array") => Token::Keyword(Keyword::Array),
                         // Logical operators
-                        "IN" | "in" => Token::Operator(Operator::Logical(LogicalOperator::In)),
-                        "NOT" | "not" => Token::Operator(Operator::Logical(LogicalOperator::Not)),
-                        "LIKE" | "like" => Token::Operator(Operator::Logical(LogicalOperator::Like)),
-                        "ILIKE" | "ilike" => Token::Operator(Operator::Logical(LogicalOperator::Ilike)),
-                        "RLIKE" | "rlike" => Token::Operator(Operator::Logical(LogicalOperator::Rlike)),
-                        "GLOB" | "glob" => Token::Operator(Operator::Logical(LogicalOperator::Glob)),
-                        "MATCH" | "match" => Token::Operator(Operator::Logical(LogicalOperator::Match)),
-                        "REGEXP" | "regexp" => Token::Operator(Operator::Logical(LogicalOperator::Regexp)),
+                        s if s.eq_ignore_ascii_case("in") => Token::Operator(Operator::Logical(LogicalOperator::In)),
+                        s if s.eq_ignore_ascii_case("not") => Token::Operator(Operator::Logical(LogicalOperator::Not)),
+                        s if s.eq_ignore_ascii_case("like") => Token::Operator(Operator::Logical(LogicalOperator::Like)),
+                        s if s.eq_ignore_ascii_case("ilike") => Token::Operator(Operator::Logical(LogicalOperator::Ilike)),
+                        s if s.eq_ignore_ascii_case("rlike") => Token::Operator(Operator::Logical(LogicalOperator::Rlike)),
+                        s if s.eq_ignore_ascii_case("glob") => Token::Operator(Operator::Logical(LogicalOperator::Glob)),
+                        s if s.eq_ignore_ascii_case("match") => Token::Operator(Operator::Logical(LogicalOperator::Match)),
+                        s if s.eq_ignore_ascii_case("regexp") => Token::Operator(Operator::Logical(LogicalOperator::Regexp)),
                         // Some of the literal value type indicators
-                        "BINARY" | "binary" => Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::Binary),
-                        "DATE" | "date" => Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::Date),
-                        "TIME" | "time" => Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::Time),
-                        "TIMESTAMP" | "timestamp" => Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::Timestamp),
-                        "X" | "x" => Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::X),
-                        "B" | "b" => Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::B),
-                        "N" | "n" => Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::N),
+                        s if s.eq_ignore_ascii_case("binary") => Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::Binary),
+                        s if s.eq_ignore_ascii_case("date") => Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::Date),
+                        s if s.eq_ignore_ascii_case("time") => Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::Time),
+                        s if s.eq_ignore_ascii_case("timestamp") => Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::Timestamp),
+                        s if s.eq_ignore_ascii_case("x") => Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::X),
+                        s if s.eq_ignore_ascii_case("b") => Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::B),
+                        s if s.eq_ignore_ascii_case("n") => Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::N),
                         // Null
-                        "NULL" | "null" => Token::Null,
+                        s if s.eq_ignore_ascii_case("NULL") => Token::Null,
                         // Other keyword
                         _ => Token::Keyword(Keyword::Other(BufferSlice::new(current_byte_offset, end_byte_offset)))
                     }
@@ -549,7 +551,7 @@ mod tests {
     }
 
     #[test]
-    fn test_logical_operators() {
+    fn test_logical_operators_uppercase() {
         let sql = "IN NOT LIKE ILIKE RLIKE GLOB MATCH REGEXP".to_string();
         let lexer = SqlLexer::new(sql);
 
@@ -577,6 +579,30 @@ mod tests {
     #[test]
     fn test_logical_operators_lowercase() {
         let sql = "in not like rlike glob match regexp".to_string();
+        let lexer = SqlLexer::new(sql);
+
+        let expected = vec![
+            Token::Operator(Operator::Logical(LogicalOperator::In)),
+            Token::Space,
+            Token::Operator(Operator::Logical(LogicalOperator::Not)),
+            Token::Space,
+            Token::Operator(Operator::Logical(LogicalOperator::Like)),
+            Token::Space,
+            Token::Operator(Operator::Logical(LogicalOperator::Rlike)),
+            Token::Space,
+            Token::Operator(Operator::Logical(LogicalOperator::Glob)),
+            Token::Space,
+            Token::Operator(Operator::Logical(LogicalOperator::Match)),
+            Token::Space,
+            Token::Operator(Operator::Logical(LogicalOperator::Regexp)),
+        ];
+
+        assert_eq!(lexer.lex().tokens, expected);
+    }
+
+    #[test]
+    fn test_logical_operators_mixedcase() {
+        let sql = "In Not Like Rlike Glob Match Regexp".to_string();
         let lexer = SqlLexer::new(sql);
 
         let expected = vec![
@@ -701,7 +727,7 @@ mod tests {
     }
 
     #[test]
-    fn test_known_keywords() {
+    fn test_known_keywords_uppercase() {
         let sql = "SELECT FROM WHERE AND OR UPDATE SET INSERT INTO VALUES INNER JOIN ON LIMIT OFFSET BETWEEN;".to_string();
         let lexer = SqlLexer::new(sql);
 
@@ -746,6 +772,48 @@ mod tests {
     #[test]
     fn test_known_keywords_lowercase() {
         let sql = "select from where and or update set insert into values inner join on limit offset between".to_string();
+        let lexer = SqlLexer::new(sql);
+
+        let expected = vec![
+            Token::Keyword(Keyword::Select),
+            Token::Space,
+            Token::Keyword(Keyword::From),
+            Token::Space,
+            Token::Keyword(Keyword::Where),
+            Token::Space,
+            Token::Keyword(Keyword::And),
+            Token::Space,
+            Token::Keyword(Keyword::Or),
+            Token::Space,
+            Token::Keyword(Keyword::Update),
+            Token::Space,
+            Token::Keyword(Keyword::Set),
+            Token::Space,
+            Token::Keyword(Keyword::Insert),
+            Token::Space,
+            Token::Keyword(Keyword::Into),
+            Token::Space,
+            Token::Keyword(Keyword::Values),
+            Token::Space,
+            Token::Keyword(Keyword::Inner),
+            Token::Space,
+            Token::Keyword(Keyword::Join),
+            Token::Space,
+            Token::Keyword(Keyword::On),
+            Token::Space,
+            Token::Keyword(Keyword::Limit),
+            Token::Space,
+            Token::Keyword(Keyword::Offset),
+            Token::Space,
+            Token::Keyword(Keyword::Between)
+        ];
+
+        assert_eq!(lexer.lex().tokens, expected);
+    }
+
+    #[test]
+    fn test_known_keywords_mixedcase() {
+        let sql = "Select From Where And Or Update Set Insert Into Values Inner Join On Limit Offset Between".to_string();
         let lexer = SqlLexer::new(sql);
 
         let expected = vec![
@@ -844,6 +912,36 @@ mod tests {
     #[test]
     fn test_literal_value_type_indicator_lowercase() {
         let sql = "binary date time timestamp x 0x b 0b n _utf8".to_string();
+        let lexer = SqlLexer::new(sql);
+
+        let expected = vec![
+            Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::Binary),
+            Token::Space,
+            Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::Date),
+            Token::Space,
+            Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::Time),
+            Token::Space,
+            Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::Timestamp),
+            Token::Space,
+            Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::X),
+            Token::Space,
+            Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::ZeroX),
+            Token::Space,
+            Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::B),
+            Token::Space,
+            Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::ZeroB),
+            Token::Space,
+            Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::N),
+            Token::Space,
+            Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::Charset(BufferSlice::new(40, 44)))
+        ];
+
+        assert_eq!(lexer.lex().tokens, expected);
+    }
+
+    #[test]
+    fn test_literal_value_type_indicator_mixedcase() {
+        let sql = "Binary Date Time Timestamp x 0x b 0B n _UTF8".to_string();
         let lexer = SqlLexer::new(sql);
 
         let expected = vec![
@@ -973,9 +1071,11 @@ mod tests {
 
     #[test]
     fn test_null() {
-        let sql = "NULL null".to_string();
+        let sql = "NULL null Null".to_string();
         let lexer = SqlLexer::new(sql);
         let expected = vec![
+            Token::Null,
+            Token::Space,
             Token::Null,
             Token::Space,
             Token::Null
