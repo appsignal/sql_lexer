@@ -1,6 +1,6 @@
-#![feature(test)]
+#[cfg_attr(test, feature(test))]
 
-extern crate test;
+#[cfg(test)] extern crate test;
 
 mod lexer;
 mod sanitizer;
