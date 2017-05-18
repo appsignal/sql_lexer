@@ -21,9 +21,17 @@ components:
 extern crate sql_lexer;
 
 fn main() {
-  println!("{}", sql_lexer::sanitize_string("SELECT * FROM `table`".to_string()));
+  println!("{}", sql_lexer::sanitize_string("SELECT * FROM `table` WHERE id = 1".to_string()));
 }
 ```
+
+This wil output:
+
+```sql
+SELECT * FROM `table` WHERE id = ?
+```
+
+The documentation is available [here](https://docs.rs/sql_lexer/0.9.1/sql_lexer/).
 
 ## Command line
 
