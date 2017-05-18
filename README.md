@@ -27,7 +27,7 @@ fn main() {
 
 ## Command line
 
-There's a utitily included to sanitize a sql query in a file to
+There's a utility included to sanitize a sql query in a file to
 facilitate testing:
 
 ```
