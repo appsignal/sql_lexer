@@ -36,7 +36,8 @@ impl SqlSanitizer {
             if pos >= self.sql.tokens.len() {
                 break
             }
-
+            println!("-----");
+            println!("{:?}, {:?}", self.sql.tokens[pos], state);
             match self.sql.tokens[pos] {
                 // Determine if we want to change or keep state
                 Token::Operator(_) if state != State::JoinOn => state = State::ComparisonOperator,
@@ -104,6 +105,7 @@ impl SqlSanitizer {
                 // Reset state to default if there were no matches
                 _ => state = State::Default
             }
+            println!("{:?}, {:?}", self.sql.tokens[pos], state);
 
             pos += 1;
         }
@@ -258,6 +260,14 @@ mod tests {
         assert_eq!(
             sanitize_string("SELECT `posts`.* FROM `posts` WHERE (created_at >= '2016-01-10 13:34:46.647328' OR updated_at >= '2016-01-10 13:34:46.647328')".to_string()),
             "SELECT `posts`.* FROM `posts` WHERE (created_at >= ? OR updated_at >= ?)"
+        );
+    }
+
+    #[test]
+    fn test_select_reversed_comparison_operators() {
+        assert_eq!(
+            sanitize_string("SELECT `posts`.* FROM `posts` WHERE ('2016-01-10 13:34:46.647328' >= created_at AND '2016-01-10 13:34:46.647328' <= updated_at)".to_string()),
+            "SELECT `posts`.* FROM `posts` WHERE (? >= created_at AND ? <= updated_at)"
         );
     }
 
