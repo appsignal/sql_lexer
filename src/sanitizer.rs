@@ -454,4 +454,12 @@ mod tests {
             sql
         );
     }
+
+    #[test]
+    fn test_json_operations() {
+        assert_eq!(
+            sanitize_string("SELECT table.*, NULLIF((table2.json_col #>> '{obj1,obj2}')::float, 0) FROM table".to_string()),
+            "SELECT table.*, NULLIF((table2.json_col #>> ?)::float, 0) FROM table"
+        )
+    }
 }

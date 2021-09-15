@@ -1,6 +1,6 @@
 use std::ascii::AsciiExt;
 
-use super::{LiteralValueTypeIndicator,Sql,Operator,ArithmeticOperator,BitwiseOperator,ComparisonOperator,LogicalOperator,BufferSlice,Token,Keyword};
+use super::{LiteralValueTypeIndicator,Sql,Operator,ArithmeticOperator,BitwiseOperator,ComparisonOperator,JsonOperator,LogicalOperator,BufferSlice,Token,Keyword};
 
 #[derive(Clone,PartialEq)]
 enum State {
@@ -108,7 +108,7 @@ impl SqlLexer {
                     Token::DoubleQuoted(BufferSlice::new(current_byte_offset + 1, end_byte_offset))
                 },
                 // Pound comment
-                '#' => {
+                '#' if self.pos + 1 == self.len || (self.pos + 1 < self.len && self.char_at(self.pos +1) != '>') => {
                     let end_byte_offset = self.scan_until(current_byte_offset, |_, c| c == '\n' || c == '\r');
                     Token::Comment(BufferSlice::new(current_byte_offset, end_byte_offset))
                 },
@@ -199,8 +199,8 @@ impl SqlLexer {
                     self.pos += 1;
                     Token::Operator(Operator::Arithmetic(ArithmeticOperator::Minus))
                 },
-                // Comparison and bitwise operators
-                '=' | '!' | '>' | '<' | '&' | '|' => {
+                // Comparison, bitwise and JSON operators
+                '=' | '!' | '>' | '<' | '&' | '|' | '#' => {
                     let end_byte_offset = self.scan_until(current_byte_offset, |_, c| {
                         match c {
                             '=' | '!' | '>' | '<' => false,
@@ -225,6 +225,9 @@ impl SqlLexer {
                         ">>" => Token::Operator(Operator::Bitwise(BitwiseOperator::RightShift)),
                         "&" => Token::Operator(Operator::Bitwise(BitwiseOperator::And)),
                         "|" => Token::Operator(Operator::Bitwise(BitwiseOperator::Or)),
+                        // JSON
+                        "#>" => Token::Operator(Operator::Json(JsonOperator::SpecifiedPath)),
+                        "#>>" => Token::Operator(Operator::Json(JsonOperator::SpecifiedPathAsText)),
                         _ => break
                     }
                 },
@@ -334,7 +337,7 @@ impl SqlLexer {
 #[cfg(test)]
 mod tests {
     use super::SqlLexer;
-    use super::super::{Token,LiteralValueTypeIndicator,Operator,ArithmeticOperator,BitwiseOperator,ComparisonOperator,LogicalOperator,BufferSlice,Keyword};
+    use super::super::{Token,LiteralValueTypeIndicator,Operator,ArithmeticOperator,BitwiseOperator,ComparisonOperator,JsonOperator,LogicalOperator,BufferSlice,Keyword};
 
     #[test]
     fn test_single_quoted_query() {
@@ -721,6 +724,35 @@ mod tests {
             Token::Operator(Operator::Bitwise(BitwiseOperator::And)),
             Token::Space,
             Token::Operator(Operator::Bitwise(BitwiseOperator::Or))
+        ];
+
+        assert_eq!(lexer.lex().tokens, expected);
+    }
+
+    #[test]
+    fn test_json_operators() {
+        let sql = "#> #>>;".to_string();
+        let lexer = SqlLexer::new(sql);
+
+        let expected = vec![
+            Token::Operator(Operator::Json(JsonOperator::SpecifiedPath)),
+            Token::Space,
+            Token::Operator(Operator::Json(JsonOperator::SpecifiedPathAsText)),
+            Token::Semicolon
+        ];
+
+        assert_eq!(lexer.lex().tokens, expected);
+    }
+
+    #[test]
+    fn test_json_operators_end_of_line() {
+        let sql = "#> #>>".to_string();
+        let lexer = SqlLexer::new(sql);
+
+        let expected = vec![
+            Token::Operator(Operator::Json(JsonOperator::SpecifiedPath)),
+            Token::Space,
+            Token::Operator(Operator::Json(JsonOperator::SpecifiedPathAsText)),
         ];
 
         assert_eq!(lexer.lex().tokens, expected);

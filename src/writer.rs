@@ -1,4 +1,4 @@
-use super::{Keyword,Token,LiteralValueTypeIndicator,Operator,ArithmeticOperator,ComparisonOperator,LogicalOperator,BitwiseOperator,Sql};
+use super::{Keyword,Token,LiteralValueTypeIndicator,Operator,ArithmeticOperator,ComparisonOperator,LogicalOperator,BitwiseOperator,JsonOperator,Sql};
 
 pub struct SqlWriter {
     pub sql: Sql
@@ -48,6 +48,9 @@ impl SqlWriter {
                 &Token::Operator(Operator::Bitwise(BitwiseOperator::RightShift)) => out.push_str(">>"),
                 &Token::Operator(Operator::Bitwise(BitwiseOperator::And)) => out.push('&'),
                 &Token::Operator(Operator::Bitwise(BitwiseOperator::Or)) => out.push('|'),
+                // JSON operator
+                &Token::Operator(Operator::Json(JsonOperator::SpecifiedPath)) => out.push_str("#>"),
+                &Token::Operator(Operator::Json(JsonOperator::SpecifiedPathAsText)) => out.push_str("#>>"),
                 // Keywords
                 &Token::Keyword(Keyword::Select) => out.push_str("SELECT"),
                 &Token::Keyword(Keyword::From) => out.push_str("FROM"),
@@ -213,6 +216,14 @@ mod tests {
     #[test]
     fn test_write_bitwise_operators() {
         let sql = "<< >> & |";
+        let written = helpers::lex_and_write(sql.to_string());
+
+        assert_eq!(written, sql);
+    }
+
+    #[test]
+    fn test_write_json_operators() {
+        let sql = "#> #>>";
         let written = helpers::lex_and_write(sql.to_string());
 
         assert_eq!(written, sql);

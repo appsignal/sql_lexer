@@ -33,7 +33,8 @@ pub enum Operator {
     Arithmetic(ArithmeticOperator),
     Logical(LogicalOperator),
     Comparison(ComparisonOperator),
-    Bitwise(BitwiseOperator)
+    Bitwise(BitwiseOperator),
+    Json(JsonOperator)
 }
 
 #[derive(Debug,PartialEq)]
@@ -81,8 +82,14 @@ pub enum BitwiseOperator {
 }
 
 #[derive(Debug,PartialEq)]
+pub enum JsonOperator {
+    SpecifiedPath, // #>
+    SpecifiedPathAsText // #>>
+}
+
+#[derive(Debug,PartialEq)]
 pub enum LiteralValueTypeIndicator {
-    Binary,              // BINARAY
+    Binary,              // BINARY
     Date,                // DATE
     Time,                // TIME
     Timestamp,           // TIMESTAMP
