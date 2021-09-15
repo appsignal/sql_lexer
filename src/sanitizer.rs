@@ -88,15 +88,6 @@ impl SqlSanitizer {
                         _ => ()
                     }
                 },
-                // Strip comments
-                Token::Comment(_) => {
-                    self.remove(pos);
-                    // Remove preceding space if there is one
-                    if pos > 1 && self.sql.tokens[pos - 1] == Token::Space {
-                        self.remove(pos - 1);
-                        continue;
-                    }
-                },
                 // Spaces don't influence the state by default
                 Token::Space => (),
                 // Keep state the same if we're in a insert values or keyword scope state
@@ -425,7 +416,7 @@ mod tests {
     fn test_comment_pound() {
         assert_eq!(
             sanitize_string("SELECT * FROM table # This is a comment".to_string()),
-            "SELECT * FROM table"
+            "SELECT * FROM table # This is a comment"
         );
     }
 
@@ -433,7 +424,7 @@ mod tests {
     fn test_comment_double_dash() {
         assert_eq!(
             sanitize_string("SELECT * FROM table -- This is a comment\n SELECT".to_string()),
-            "SELECT * FROM table\n SELECT"
+            "SELECT * FROM table -- This is a comment\n SELECT"
         );
     }
 
@@ -441,7 +432,7 @@ mod tests {
     fn test_comment_multi_line() {
         assert_eq!(
             sanitize_string("SELECT * FROM table /* This is a comment */ SELECT".to_string()),
-            "SELECT * FROM table SELECT"
+            "SELECT * FROM table /* This is a comment */ SELECT"
         );
     }
 
