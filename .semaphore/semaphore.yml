@@ -1,0 +1,26 @@
+version: v1.0
+name: AppSignal sql_lexer
+agent:
+  machine:
+    type: e1-standard-2
+  containers:
+    - name: main
+      image: registry.semaphoreci.com/rust:1.51
+blocks:
+  - name: 'Default'
+    task:
+      jobs:
+        - name: Formatter and linter
+          commands:
+            - checkout
+            - rustup component add rustfmt clippy
+            - cache restore clippy-${SEMAPHORE_GIT_BRANCH}-${LOCK_CHECKSUM}
+            - cargo fmt --verbose --all -- --check
+            - cargo clippy
+            - cache store clippy-${SEMAPHORE_GIT_BRANCH}-${LOCK_CHECKSUM}
+        - name: Build and tests
+          commands:
+            - checkout
+            - rustup toolchain install nightly
+            - cargo build --verbose
+            - cargo +nightly test --verbose
