@@ -1,21 +1,22 @@
-use std::ascii::AsciiExt;
+use super::{
+    ArithmeticOperator, BitwiseOperator, BufferSlice, ComparisonOperator, JsonOperator, Keyword,
+    LiteralValueTypeIndicator, LogicalOperator, Operator, Sql, Token,
+};
 
-use super::{LiteralValueTypeIndicator,Sql,Operator,ArithmeticOperator,BitwiseOperator,ComparisonOperator,JsonOperator,LogicalOperator,BufferSlice,Token,Keyword};
-
-#[derive(Clone,PartialEq)]
+#[derive(Clone, PartialEq)]
 enum State {
     Default,
     PastSelect,
-    PastFrom
+    PastFrom,
 }
 
 #[derive(Clone)]
 pub struct SqlLexer {
-    state:        State,
-    buf:          String,
+    state: State,
+    buf: String,
     char_indices: Vec<(usize, char)>,
-    len:          usize,
-    pos:          usize
+    len: usize,
+    pos: usize,
 }
 
 impl SqlLexer {
@@ -23,11 +24,11 @@ impl SqlLexer {
         let char_indices: Vec<(usize, char)> = buf.char_indices().collect();
         let len = char_indices.len();
         SqlLexer {
-            state:        State::Default,
-            buf:          buf,
-            char_indices: char_indices,
-            len:          len,
-            pos:           0
+            state: State::Default,
+            buf,
+            char_indices,
+            len,
+            pos: 0,
         }
     }
 
@@ -35,7 +36,10 @@ impl SqlLexer {
         self.char_indices[pos].1
     }
 
-    fn scan_until<F>(&mut self, mut current_byte_offset: usize, at_end_function: F) -> usize where F: Fn(&SqlLexer, char) -> bool {
+    fn scan_until<F>(&mut self, mut current_byte_offset: usize, at_end_function: F) -> usize
+    where
+        F: Fn(&SqlLexer, char) -> bool,
+    {
         self.pos += 1;
         loop {
             if self.pos >= self.len {
@@ -43,19 +47,23 @@ impl SqlLexer {
                 if self.pos > 0 {
                     current_byte_offset += self.char_indices[self.pos - 1].1.len_utf8();
                 }
-                break
+                break;
             }
             let indice = self.char_indices[self.pos];
             current_byte_offset = indice.0;
-            if at_end_function(&self, indice.1) {
-                break
+            if at_end_function(self, indice.1) {
+                break;
             }
             self.pos += 1;
         }
         current_byte_offset
     }
 
-    fn scan_for_delimiter_with_possible_escaping(&mut self, mut current_byte_offset: usize, delimiter: char) -> usize {
+    fn scan_for_delimiter_with_possible_escaping(
+        &mut self,
+        mut current_byte_offset: usize,
+        delimiter: char,
+    ) -> usize {
         let mut escape_char_count = 0;
         self.pos += 1;
         loop {
@@ -64,13 +72,13 @@ impl SqlLexer {
                 if self.pos > 0 {
                     current_byte_offset += self.char_indices[self.pos - 1].1.len_utf8();
                 }
-                break
+                break;
             }
             let indice = self.char_indices[self.pos];
             current_byte_offset = indice.0;
-            if indice.1 == delimiter && escape_char_count % 2 == 0  {
+            if indice.1 == delimiter && escape_char_count % 2 == 0 {
                 self.pos += 1;
-                break
+                break;
             } else if indice.1 == '\\' {
                 escape_char_count += 1;
             } else {
@@ -81,12 +89,13 @@ impl SqlLexer {
         current_byte_offset
     }
 
+    #[allow(clippy::match_like_matches_macro)]
     pub fn lex(mut self) -> Sql {
         let mut tokens = Vec::new();
 
         loop {
             if self.pos >= self.len {
-                break
+                break;
             }
 
             let (current_byte_offset, current_char) = self.char_indices[self.pos];
@@ -94,131 +103,154 @@ impl SqlLexer {
             let token = match current_char {
                 // Back quoted
                 '`' => {
-                    let end_byte_offset = self.scan_for_delimiter_with_possible_escaping(current_byte_offset, '`');
+                    let end_byte_offset =
+                        self.scan_for_delimiter_with_possible_escaping(current_byte_offset, '`');
                     Token::Backticked(BufferSlice::new(current_byte_offset + 1, end_byte_offset))
-                },
+                }
                 // Single quoted
                 '\'' => {
-                    let end_byte_offset = self.scan_for_delimiter_with_possible_escaping(current_byte_offset, '\'');
+                    let end_byte_offset =
+                        self.scan_for_delimiter_with_possible_escaping(current_byte_offset, '\'');
                     Token::SingleQuoted(BufferSlice::new(current_byte_offset + 1, end_byte_offset))
-                },
+                }
                 // Double quoted
                 '"' => {
-                    let end_byte_offset = self.scan_for_delimiter_with_possible_escaping(current_byte_offset, '"');
+                    let end_byte_offset =
+                        self.scan_for_delimiter_with_possible_escaping(current_byte_offset, '"');
                     Token::DoubleQuoted(BufferSlice::new(current_byte_offset + 1, end_byte_offset))
-                },
+                }
                 // Pound comment
-                '#' if self.pos + 1 == self.len || (self.pos + 1 < self.len && self.char_at(self.pos +1) != '>') => {
-                    let end_byte_offset = self.scan_until(current_byte_offset, |_, c| c == '\n' || c == '\r');
+                '#' if self.pos + 1 == self.len
+                    || (self.pos + 1 < self.len && self.char_at(self.pos + 1) != '>') =>
+                {
+                    let end_byte_offset =
+                        self.scan_until(current_byte_offset, |_, c| c == '\n' || c == '\r');
                     Token::Comment(BufferSlice::new(current_byte_offset, end_byte_offset))
-                },
+                }
                 // Double dash comment
                 '-' if self.pos + 1 < self.len && self.char_at(self.pos + 1) == '-' => {
-                    let end_byte_offset = self.scan_until(current_byte_offset, |_, c| c == '\n' || c == '\r');
+                    let end_byte_offset =
+                        self.scan_until(current_byte_offset, |_, c| c == '\n' || c == '\r');
                     Token::Comment(BufferSlice::new(current_byte_offset, end_byte_offset))
-                },
+                }
                 // Multi line comment
                 '/' if self.pos + 1 < self.len && self.char_at(self.pos + 1) == '*' => {
                     let end_byte_offset = self.scan_until(current_byte_offset, |lexer, _| {
-                        lexer.pos > 1 &&
-                            lexer.char_at(lexer.pos -2) == '*' &&
-                            lexer.char_at(lexer.pos -1) == '/'
+                        lexer.pos > 1
+                            && lexer.char_at(lexer.pos - 2) == '*'
+                            && lexer.char_at(lexer.pos - 1) == '/'
                     });
                     Token::Comment(BufferSlice::new(current_byte_offset, end_byte_offset))
-                },
+                }
                 // Generic tokens
                 ' ' => {
                     self.pos += 1;
                     Token::Space
-                },
+                }
                 '\n' | '\r' => {
                     self.pos += 1;
                     Token::Newline
-                },
+                }
                 '.' => {
                     self.pos += 1;
                     Token::Dot
-                },
+                }
                 ',' => {
                     self.pos += 1;
                     Token::Comma
-                },
+                }
                 '(' => {
                     self.pos += 1;
                     Token::ParentheseOpen
-                },
+                }
                 ')' => {
                     self.pos += 1;
                     Token::ParentheseClose
-                },
+                }
                 '[' => {
                     self.pos += 1;
                     Token::SquareBracketOpen
-                },
+                }
                 ']' => {
                     self.pos += 1;
                     Token::SquareBracketClose
-                },
+                }
                 ':' => {
                     self.pos += 1;
                     Token::Colon
-                },
+                }
                 ';' => {
                     self.pos += 1;
                     Token::Semicolon
-                },
+                }
                 '?' => {
                     self.pos += 1;
                     Token::Placeholder
-                },
+                }
                 '$' => {
-                    let end_byte_offset = self.scan_until(current_byte_offset, |_, c| !c.is_numeric() );
-                    Token::NumberedPlaceholder(BufferSlice::new(current_byte_offset, end_byte_offset))
-                },
+                    let end_byte_offset =
+                        self.scan_until(current_byte_offset, |_, c| !c.is_numeric());
+                    Token::NumberedPlaceholder(BufferSlice::new(
+                        current_byte_offset,
+                        end_byte_offset,
+                    ))
+                }
                 // Arithmetic operators
                 '*' => {
                     self.pos += 1;
                     match self.state {
                         State::PastSelect => Token::Wildcard,
-                        _ => Token::Operator(Operator::Arithmetic(ArithmeticOperator::Multiply))
+                        _ => Token::Operator(Operator::Arithmetic(ArithmeticOperator::Multiply)),
                     }
-                },
+                }
                 '/' => {
                     self.pos += 1;
                     Token::Operator(Operator::Arithmetic(ArithmeticOperator::Divide))
-                },
+                }
                 '%' => {
                     self.pos += 1;
                     Token::Operator(Operator::Arithmetic(ArithmeticOperator::Modulo))
-                },
+                }
                 '+' => {
                     self.pos += 1;
                     Token::Operator(Operator::Arithmetic(ArithmeticOperator::Plus))
-                },
-                '-' if !(self.pos + 1 < self.len && self.char_at(self.pos +1).is_numeric()) => {
+                }
+                '-' if !(self.pos + 1 < self.len && self.char_at(self.pos + 1).is_numeric()) => {
                     self.pos += 1;
                     Token::Operator(Operator::Arithmetic(ArithmeticOperator::Minus))
-                },
+                }
                 // Comparison, bitwise and JSON operators
                 '=' | '!' | '>' | '<' | '&' | '|' | '#' => {
-                    let end_byte_offset = self.scan_until(current_byte_offset, |_, c| {
-                        match c {
-                            '=' | '!' | '>' | '<' => false,
-                            _ => true
-                        }
+                    let end_byte_offset = self.scan_until(current_byte_offset, |_, c| match c {
+                        '=' | '!' | '>' | '<' => false,
+                        _ => true,
                     });
                     match &self.buf[current_byte_offset..end_byte_offset] {
                         // Comparison
-                        "<=>" => Token::Operator(Operator::Comparison(ComparisonOperator::NullSafeEqual)),
-                        ">=" => Token::Operator(Operator::Comparison(ComparisonOperator::GreaterThanOrEqual)),
-                        "<=" => Token::Operator(Operator::Comparison(ComparisonOperator::LessThanOrEqual)),
-                        "=>" => Token::Operator(Operator::Comparison(ComparisonOperator::EqualOrGreaterThan)),
-                        "=<" => Token::Operator(Operator::Comparison(ComparisonOperator::EqualOrLessThan)),
-                        "<>" => Token::Operator(Operator::Comparison(ComparisonOperator::EqualWithArrows)),
+                        "<=>" => {
+                            Token::Operator(Operator::Comparison(ComparisonOperator::NullSafeEqual))
+                        }
+                        ">=" => Token::Operator(Operator::Comparison(
+                            ComparisonOperator::GreaterThanOrEqual,
+                        )),
+                        "<=" => Token::Operator(Operator::Comparison(
+                            ComparisonOperator::LessThanOrEqual,
+                        )),
+                        "=>" => Token::Operator(Operator::Comparison(
+                            ComparisonOperator::EqualOrGreaterThan,
+                        )),
+                        "=<" => Token::Operator(Operator::Comparison(
+                            ComparisonOperator::EqualOrLessThan,
+                        )),
+                        "<>" => Token::Operator(Operator::Comparison(
+                            ComparisonOperator::EqualWithArrows,
+                        )),
                         "!=" => Token::Operator(Operator::Comparison(ComparisonOperator::NotEqual)),
                         "==" => Token::Operator(Operator::Comparison(ComparisonOperator::Equal2)),
                         "=" => Token::Operator(Operator::Comparison(ComparisonOperator::Equal)),
-                        ">" => Token::Operator(Operator::Comparison(ComparisonOperator::GreaterThan)),
+                        ">" => {
+                            Token::Operator(Operator::Comparison(ComparisonOperator::GreaterThan))
+                        }
                         "<" => Token::Operator(Operator::Comparison(ComparisonOperator::LessThan)),
                         // Bitwise
                         "<<" => Token::Operator(Operator::Bitwise(BitwiseOperator::LeftShift)),
@@ -228,41 +260,39 @@ impl SqlLexer {
                         // JSON
                         "#>" => Token::Operator(Operator::Json(JsonOperator::SpecifiedPath)),
                         "#>>" => Token::Operator(Operator::Json(JsonOperator::SpecifiedPathAsText)),
-                        _ => break
+                        _ => break,
                     }
-                },
+                }
                 // Charset literal value type indicator
                 '_' => {
-                    let end_byte_offset = self.scan_until(current_byte_offset, |_, c| {
-                        match c {
-                            c if c.is_alphabetic() => false,
-                            c if c.is_numeric() => false,
-                            _ => true
-                        }
+                    let end_byte_offset = self.scan_until(current_byte_offset, |_, c| match c {
+                        c if c.is_alphabetic() => false,
+                        c if c.is_numeric() => false,
+                        _ => true,
                     });
-                    Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::Charset(BufferSlice::new(current_byte_offset + 1, end_byte_offset)))
-                },
+                    Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::Charset(
+                        BufferSlice::new(current_byte_offset + 1, end_byte_offset),
+                    ))
+                }
                 // Logical operators and keywords
                 c if c.is_alphabetic() => {
-                    let end_byte_offset = self.scan_until(current_byte_offset, |_, c| {
-                        match c {
-                            '_' => false,
-                            '-' => false,
-                            c if c.is_alphabetic() => false,
-                            c if c.is_numeric() => false,
-                            _ => true
-                        }
+                    let end_byte_offset = self.scan_until(current_byte_offset, |_, c| match c {
+                        '_' => false,
+                        '-' => false,
+                        c if c.is_alphabetic() => false,
+                        c if c.is_numeric() => false,
+                        _ => true,
                     });
                     match &self.buf[current_byte_offset..end_byte_offset] {
                         // Keywords
                         s if s.eq_ignore_ascii_case("select") => {
                             self.state = State::PastSelect;
                             Token::Keyword(Keyword::Select)
-                        },
+                        }
                         s if s.eq_ignore_ascii_case("from") => {
                             self.state = State::PastFrom;
                             Token::Keyword(Keyword::From)
-                        },
+                        }
                         s if s.eq_ignore_ascii_case("where") => Token::Keyword(Keyword::Where),
                         s if s.eq_ignore_ascii_case("and") => Token::Keyword(Keyword::And),
                         s if s.eq_ignore_ascii_case("or") => Token::Keyword(Keyword::Or),
@@ -279,44 +309,79 @@ impl SqlLexer {
                         s if s.eq_ignore_ascii_case("between") => Token::Keyword(Keyword::Between),
                         s if s.eq_ignore_ascii_case("array") => Token::Keyword(Keyword::Array),
                         // Logical operators
-                        s if s.eq_ignore_ascii_case("in") => Token::Operator(Operator::Logical(LogicalOperator::In)),
-                        s if s.eq_ignore_ascii_case("not") => Token::Operator(Operator::Logical(LogicalOperator::Not)),
-                        s if s.eq_ignore_ascii_case("like") => Token::Operator(Operator::Logical(LogicalOperator::Like)),
-                        s if s.eq_ignore_ascii_case("ilike") => Token::Operator(Operator::Logical(LogicalOperator::Ilike)),
-                        s if s.eq_ignore_ascii_case("rlike") => Token::Operator(Operator::Logical(LogicalOperator::Rlike)),
-                        s if s.eq_ignore_ascii_case("glob") => Token::Operator(Operator::Logical(LogicalOperator::Glob)),
-                        s if s.eq_ignore_ascii_case("match") => Token::Operator(Operator::Logical(LogicalOperator::Match)),
-                        s if s.eq_ignore_ascii_case("regexp") => Token::Operator(Operator::Logical(LogicalOperator::Regexp)),
+                        s if s.eq_ignore_ascii_case("in") => {
+                            Token::Operator(Operator::Logical(LogicalOperator::In))
+                        }
+                        s if s.eq_ignore_ascii_case("not") => {
+                            Token::Operator(Operator::Logical(LogicalOperator::Not))
+                        }
+                        s if s.eq_ignore_ascii_case("like") => {
+                            Token::Operator(Operator::Logical(LogicalOperator::Like))
+                        }
+                        s if s.eq_ignore_ascii_case("ilike") => {
+                            Token::Operator(Operator::Logical(LogicalOperator::Ilike))
+                        }
+                        s if s.eq_ignore_ascii_case("rlike") => {
+                            Token::Operator(Operator::Logical(LogicalOperator::Rlike))
+                        }
+                        s if s.eq_ignore_ascii_case("glob") => {
+                            Token::Operator(Operator::Logical(LogicalOperator::Glob))
+                        }
+                        s if s.eq_ignore_ascii_case("match") => {
+                            Token::Operator(Operator::Logical(LogicalOperator::Match))
+                        }
+                        s if s.eq_ignore_ascii_case("regexp") => {
+                            Token::Operator(Operator::Logical(LogicalOperator::Regexp))
+                        }
                         // Some of the literal value type indicators
-                        s if s.eq_ignore_ascii_case("binary") => Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::Binary),
-                        s if s.eq_ignore_ascii_case("date") => Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::Date),
-                        s if s.eq_ignore_ascii_case("time") => Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::Time),
-                        s if s.eq_ignore_ascii_case("timestamp") => Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::Timestamp),
-                        s if s.eq_ignore_ascii_case("x") => Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::X),
-                        s if s.eq_ignore_ascii_case("b") => Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::B),
-                        s if s.eq_ignore_ascii_case("n") => Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::N),
+                        s if s.eq_ignore_ascii_case("binary") => {
+                            Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::Binary)
+                        }
+                        s if s.eq_ignore_ascii_case("date") => {
+                            Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::Date)
+                        }
+                        s if s.eq_ignore_ascii_case("time") => {
+                            Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::Time)
+                        }
+                        s if s.eq_ignore_ascii_case("timestamp") => {
+                            Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::Timestamp)
+                        }
+                        s if s.eq_ignore_ascii_case("x") => {
+                            Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::X)
+                        }
+                        s if s.eq_ignore_ascii_case("b") => {
+                            Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::B)
+                        }
+                        s if s.eq_ignore_ascii_case("n") => {
+                            Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::N)
+                        }
                         // Null
                         s if s.eq_ignore_ascii_case("NULL") => Token::Null,
                         // Other keyword
-                        _ => Token::Keyword(Keyword::Other(BufferSlice::new(current_byte_offset, end_byte_offset)))
+                        _ => Token::Keyword(Keyword::Other(BufferSlice::new(
+                            current_byte_offset,
+                            end_byte_offset,
+                        ))),
                     }
-                },
+                }
                 // Numeric
                 c if c == '-' || c.is_numeric() => {
-                    let end_byte_offset = self.scan_until(current_byte_offset, |_, c| {
-                        match c {
-                            '.' => false,
-                            'x' | 'X' | 'b' | 'B' => false,
-                            c if c.is_numeric() => false,
-                            _ => true
-                        }
+                    let end_byte_offset = self.scan_until(current_byte_offset, |_, c| match c {
+                        '.' => false,
+                        'x' | 'X' | 'b' | 'B' => false,
+                        c if c.is_numeric() => false,
+                        _ => true,
                     });
                     match &self.buf[current_byte_offset..end_byte_offset] {
-                        "0X" | "0x" => Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::ZeroX),
-                        "0B" | "0b" => Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::ZeroB),
-                        _ => Token::Numeric(BufferSlice::new(current_byte_offset, end_byte_offset))
+                        "0X" | "0x" => {
+                            Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::ZeroX)
+                        }
+                        "0B" | "0b" => {
+                            Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::ZeroB)
+                        }
+                        _ => Token::Numeric(BufferSlice::new(current_byte_offset, end_byte_offset)),
                     }
-                },
+                }
                 // Unknown
                 c => {
                     self.pos += 1;
@@ -329,19 +394,23 @@ impl SqlLexer {
 
         Sql {
             buf: self.buf,
-            tokens: tokens
+            tokens,
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use super::super::{
+        ArithmeticOperator, BitwiseOperator, BufferSlice, ComparisonOperator, JsonOperator,
+        Keyword, LiteralValueTypeIndicator, LogicalOperator, Operator, Token,
+    };
     use super::SqlLexer;
-    use super::super::{Token,LiteralValueTypeIndicator,Operator,ArithmeticOperator,BitwiseOperator,ComparisonOperator,JsonOperator,LogicalOperator,BufferSlice,Keyword};
 
     #[test]
     fn test_single_quoted_query() {
-        let sql = "SELECT `table`.* FROM `table` WHERE `id` = 'secret' and `other` = 'something';".to_string();
+        let sql = "SELECT `table`.* FROM `table` WHERE `id` = 'secret' and `other` = 'something';"
+            .to_string();
         let lexer = SqlLexer::new(sql);
 
         let expected = vec![
@@ -370,7 +439,7 @@ mod tests {
             Token::Operator(Operator::Comparison(ComparisonOperator::Equal)),
             Token::Space,
             Token::SingleQuoted(BufferSlice::new(67, 76)),
-            Token::Semicolon
+            Token::Semicolon,
         ];
 
         assert_eq!(lexer.lex().tokens, expected);
@@ -378,7 +447,8 @@ mod tests {
 
     #[test]
     fn test_double_quoted_and_numeric_query() {
-        let sql = "SELECT \"table\".* FROM \"table\" WHERE \"id\" = 18 AND \"number\" = 18.0;".to_string();
+        let sql = "SELECT \"table\".* FROM \"table\" WHERE \"id\" = 18 AND \"number\" = 18.0;"
+            .to_string();
         let lexer = SqlLexer::new(sql);
 
         let expected = vec![
@@ -407,7 +477,7 @@ mod tests {
             Token::Operator(Operator::Comparison(ComparisonOperator::Equal)),
             Token::Space,
             Token::Numeric(BufferSlice::new(61, 65)),
-            Token::Semicolon
+            Token::Semicolon,
         ];
 
         assert_eq!(lexer.lex().tokens, expected);
@@ -433,7 +503,7 @@ mod tests {
             Token::DoubleQuoted(BufferSlice::new(42, 48)),
             Token::Operator(Operator::Comparison(ComparisonOperator::Equal)),
             Token::Numeric(BufferSlice::new(50, 54)),
-            Token::Semicolon
+            Token::Semicolon,
         ];
 
         assert_eq!(lexer.lex().tokens, expected);
@@ -466,7 +536,7 @@ mod tests {
             Token::Comma,
             Token::Numeric(BufferSlice::new(41, 42)),
             Token::ParentheseClose,
-            Token::Semicolon
+            Token::Semicolon,
         ];
 
         assert_eq!(lexer.lex().tokens, expected);
@@ -474,7 +544,8 @@ mod tests {
 
     #[test]
     fn test_array_query() {
-        let sql = "SELECT * FROM \"table\" WHERE \"field\" = ARRAY['item_1','item_2','item_3']".to_string();
+        let sql = "SELECT * FROM \"table\" WHERE \"field\" = ARRAY['item_1','item_2','item_3']"
+            .to_string();
         let lexer = SqlLexer::new(sql);
 
         let expected = vec![
@@ -499,7 +570,7 @@ mod tests {
             Token::SingleQuoted(BufferSlice::new(54, 60)),
             Token::Comma,
             Token::SingleQuoted(BufferSlice::new(63, 69)),
-            Token::SquareBracketClose
+            Token::SquareBracketClose,
         ];
 
         assert_eq!(lexer.lex().tokens, expected);
@@ -529,7 +600,7 @@ mod tests {
             Token::Operator(Operator::Arithmetic(ArithmeticOperator::Plus)),
             Token::Space,
             Token::Operator(Operator::Arithmetic(ArithmeticOperator::Minus)),
-            Token::Semicolon
+            Token::Semicolon,
         ];
 
         assert_eq!(lexer.lex().tokens, expected);
@@ -547,7 +618,7 @@ mod tests {
             Token::Space,
             Token::Numeric(BufferSlice::new(6, 8)),
             Token::Space,
-            Token::Numeric(BufferSlice::new(9, 13))
+            Token::Numeric(BufferSlice::new(9, 13)),
         ];
 
         assert_eq!(lexer.lex().tokens, expected);
@@ -654,7 +725,7 @@ mod tests {
             Token::Operator(Operator::Comparison(ComparisonOperator::GreaterThan)),
             Token::Space,
             Token::Operator(Operator::Comparison(ComparisonOperator::LessThan)),
-            Token::Semicolon
+            Token::Semicolon,
         ];
 
         assert_eq!(lexer.lex().tokens, expected);
@@ -686,7 +757,7 @@ mod tests {
             Token::Space,
             Token::Operator(Operator::Comparison(ComparisonOperator::GreaterThan)),
             Token::Space,
-            Token::Operator(Operator::Comparison(ComparisonOperator::LessThan))
+            Token::Operator(Operator::Comparison(ComparisonOperator::LessThan)),
         ];
 
         assert_eq!(lexer.lex().tokens, expected);
@@ -705,7 +776,7 @@ mod tests {
             Token::Operator(Operator::Bitwise(BitwiseOperator::And)),
             Token::Space,
             Token::Operator(Operator::Bitwise(BitwiseOperator::Or)),
-            Token::Semicolon
+            Token::Semicolon,
         ];
 
         assert_eq!(lexer.lex().tokens, expected);
@@ -723,7 +794,7 @@ mod tests {
             Token::Space,
             Token::Operator(Operator::Bitwise(BitwiseOperator::And)),
             Token::Space,
-            Token::Operator(Operator::Bitwise(BitwiseOperator::Or))
+            Token::Operator(Operator::Bitwise(BitwiseOperator::Or)),
         ];
 
         assert_eq!(lexer.lex().tokens, expected);
@@ -738,7 +809,7 @@ mod tests {
             Token::Operator(Operator::Json(JsonOperator::SpecifiedPath)),
             Token::Space,
             Token::Operator(Operator::Json(JsonOperator::SpecifiedPathAsText)),
-            Token::Semicolon
+            Token::Semicolon,
         ];
 
         assert_eq!(lexer.lex().tokens, expected);
@@ -795,7 +866,7 @@ mod tests {
             Token::Keyword(Keyword::Offset),
             Token::Space,
             Token::Keyword(Keyword::Between),
-            Token::Semicolon
+            Token::Semicolon,
         ];
 
         assert_eq!(lexer.lex().tokens, expected);
@@ -837,7 +908,7 @@ mod tests {
             Token::Space,
             Token::Keyword(Keyword::Offset),
             Token::Space,
-            Token::Keyword(Keyword::Between)
+            Token::Keyword(Keyword::Between),
         ];
 
         assert_eq!(lexer.lex().tokens, expected);
@@ -879,7 +950,7 @@ mod tests {
             Token::Space,
             Token::Keyword(Keyword::Offset),
             Token::Space,
-            Token::Keyword(Keyword::Between)
+            Token::Keyword(Keyword::Between),
         ];
 
         assert_eq!(lexer.lex().tokens, expected);
@@ -894,7 +965,7 @@ mod tests {
             Token::Keyword(Keyword::Other(BufferSlice::new(0, 7))),
             Token::Space,
             Token::Keyword(Keyword::From),
-            Token::Semicolon
+            Token::Semicolon,
         ];
 
         assert_eq!(lexer.lex().tokens, expected);
@@ -905,9 +976,7 @@ mod tests {
         let sql = "OBSCURE".to_string();
         let lexer = SqlLexer::new(sql);
 
-        let expected = vec![
-            Token::Keyword(Keyword::Other(BufferSlice::new(0, 7)))
-        ];
+        let expected = vec![Token::Keyword(Keyword::Other(BufferSlice::new(0, 7)))];
 
         assert_eq!(lexer.lex().tokens, expected);
     }
@@ -940,7 +1009,6 @@ mod tests {
         assert_eq!(lexer.lex().tokens, expected);
     }
 
-
     #[test]
     fn test_literal_value_type_indicator_lowercase() {
         let sql = "binary date time timestamp x 0x b 0b n _utf8".to_string();
@@ -965,7 +1033,9 @@ mod tests {
             Token::Space,
             Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::N),
             Token::Space,
-            Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::Charset(BufferSlice::new(40, 44)))
+            Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::Charset(BufferSlice::new(
+                40, 44,
+            ))),
         ];
 
         assert_eq!(lexer.lex().tokens, expected);
@@ -995,7 +1065,9 @@ mod tests {
             Token::Space,
             Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::N),
             Token::Space,
-            Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::Charset(BufferSlice::new(40, 44)))
+            Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::Charset(BufferSlice::new(
+                40, 44,
+            ))),
         ];
 
         assert_eq!(lexer.lex().tokens, expected);
@@ -1011,7 +1083,7 @@ mod tests {
             Token::Keyword(Keyword::From),
             Token::Space,
             Token::SingleQuoted(BufferSlice::new(16, 25)),
-            Token::Semicolon
+            Token::Semicolon,
         ];
 
         assert_eq!(lexer.lex().tokens, expected);
@@ -1027,7 +1099,7 @@ mod tests {
             Token::Keyword(Keyword::From),
             Token::Space,
             Token::DoubleQuoted(BufferSlice::new(16, 25)),
-            Token::Semicolon
+            Token::Semicolon,
         ];
 
         assert_eq!(lexer.lex().tokens, expected);
@@ -1037,9 +1109,7 @@ mod tests {
     fn test_quoted_missing_delimiter() {
         let sql = "\"val\\\"ue".to_string();
         let lexer = SqlLexer::new(sql);
-        let expected = vec![
-            Token::DoubleQuoted(BufferSlice::new(1, 8))
-        ];
+        let expected = vec![Token::DoubleQuoted(BufferSlice::new(1, 8))];
 
         assert_eq!(lexer.lex().tokens, expected);
     }
@@ -1060,7 +1130,7 @@ mod tests {
             Token::Space,
             Token::Semicolon,
             Token::Space,
-            Token::Backticked(BufferSlice::new(21, 26))
+            Token::Backticked(BufferSlice::new(21, 26)),
         ];
 
         assert_eq!(lexer.lex().tokens, expected);
@@ -1078,7 +1148,7 @@ mod tests {
             Token::NumberedPlaceholder(BufferSlice::new(5, 7)),
             Token::Space,
             Token::NumberedPlaceholder(BufferSlice::new(8, 11)),
-            Token::Semicolon
+            Token::Semicolon,
         ];
 
         assert_eq!(lexer.lex().tokens, expected);
@@ -1095,7 +1165,7 @@ mod tests {
             Token::Space,
             Token::NumberedPlaceholder(BufferSlice::new(5, 7)),
             Token::Space,
-            Token::NumberedPlaceholder(BufferSlice::new(8, 11))
+            Token::NumberedPlaceholder(BufferSlice::new(8, 11)),
         ];
 
         assert_eq!(lexer.lex().tokens, expected);
@@ -1110,7 +1180,7 @@ mod tests {
             Token::Space,
             Token::Null,
             Token::Space,
-            Token::Null
+            Token::Null,
         ];
 
         assert_eq!(lexer.lex().tokens, expected);
@@ -1120,11 +1190,7 @@ mod tests {
     fn test_unknown() {
         let sql = "~ ^".to_string();
         let lexer = SqlLexer::new(sql);
-        let expected = vec![
-            Token::Unknown('~'),
-            Token::Space,
-            Token::Unknown('^'),
-        ];
+        let expected = vec![Token::Unknown('~'), Token::Space, Token::Unknown('^')];
 
         assert_eq!(lexer.lex().tokens, expected);
     }
@@ -1145,7 +1211,7 @@ mod tests {
             Token::Comment(BufferSlice::new(20, 39)),
             Token::Newline,
             Token::Space,
-            Token::Keyword(Keyword::Select)
+            Token::Keyword(Keyword::Select),
         ];
 
         assert_eq!(lexer.lex().tokens, expected);
@@ -1167,7 +1233,7 @@ mod tests {
             Token::Comment(BufferSlice::new(20, 40)),
             Token::Newline,
             Token::Space,
-            Token::Keyword(Keyword::Select)
+            Token::Keyword(Keyword::Select),
         ];
 
         assert_eq!(lexer.lex().tokens, expected);
@@ -1188,7 +1254,7 @@ mod tests {
             Token::Space,
             Token::Comment(BufferSlice::new(20, 43)),
             Token::Space,
-            Token::Keyword(Keyword::Select)
+            Token::Keyword(Keyword::Select),
         ];
 
         assert_eq!(lexer.lex().tokens, expected);

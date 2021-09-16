@@ -1,135 +1,178 @@
-use super::{Keyword,Token,LiteralValueTypeIndicator,Operator,ArithmeticOperator,ComparisonOperator,LogicalOperator,BitwiseOperator,JsonOperator,Sql};
+use super::{
+    ArithmeticOperator, BitwiseOperator, ComparisonOperator, JsonOperator, Keyword,
+    LiteralValueTypeIndicator, LogicalOperator, Operator, Sql, Token,
+};
 
 pub struct SqlWriter {
-    pub sql: Sql
+    pub sql: Sql,
 }
 
 impl SqlWriter {
     pub fn new(sql: Sql) -> SqlWriter {
-        SqlWriter {
-            sql: sql
-        }
+        SqlWriter { sql }
     }
 
     pub fn write(&self) -> String {
         let mut out = String::new();
 
         for token in self.sql.tokens.iter() {
-            match token {
+            match *token {
                 // Arithmetic operator
-                &Token::Operator(Operator::Arithmetic(ArithmeticOperator::Multiply)) => out.push('*'),
-                &Token::Operator(Operator::Arithmetic(ArithmeticOperator::Divide)) => out.push('/'),
-                &Token::Operator(Operator::Arithmetic(ArithmeticOperator::Modulo)) => out.push('%'),
-                &Token::Operator(Operator::Arithmetic(ArithmeticOperator::Plus)) => out.push('+'),
-                &Token::Operator(Operator::Arithmetic(ArithmeticOperator::Minus)) => out.push('-'),
+                Token::Operator(Operator::Arithmetic(ArithmeticOperator::Multiply)) => {
+                    out.push('*')
+                }
+                Token::Operator(Operator::Arithmetic(ArithmeticOperator::Divide)) => out.push('/'),
+                Token::Operator(Operator::Arithmetic(ArithmeticOperator::Modulo)) => out.push('%'),
+                Token::Operator(Operator::Arithmetic(ArithmeticOperator::Plus)) => out.push('+'),
+                Token::Operator(Operator::Arithmetic(ArithmeticOperator::Minus)) => out.push('-'),
                 // Logical operator
-                &Token::Operator(Operator::Logical(LogicalOperator::In)) => out.push_str("IN"),
-                &Token::Operator(Operator::Logical(LogicalOperator::Not)) => out.push_str("NOT"),
-                &Token::Operator(Operator::Logical(LogicalOperator::Like)) => out.push_str("LIKE"),
-                &Token::Operator(Operator::Logical(LogicalOperator::Ilike)) => out.push_str("ILIKE"),
-                &Token::Operator(Operator::Logical(LogicalOperator::Rlike)) => out.push_str("RLIKE"),
-                &Token::Operator(Operator::Logical(LogicalOperator::Glob)) => out.push_str("GLOB"),
-                &Token::Operator(Operator::Logical(LogicalOperator::Match)) => out.push_str("MATCH"),
-                &Token::Operator(Operator::Logical(LogicalOperator::Regexp)) => out.push_str("REGEXP"),
+                Token::Operator(Operator::Logical(LogicalOperator::In)) => out.push_str("IN"),
+                Token::Operator(Operator::Logical(LogicalOperator::Not)) => out.push_str("NOT"),
+                Token::Operator(Operator::Logical(LogicalOperator::Like)) => out.push_str("LIKE"),
+                Token::Operator(Operator::Logical(LogicalOperator::Ilike)) => out.push_str("ILIKE"),
+                Token::Operator(Operator::Logical(LogicalOperator::Rlike)) => out.push_str("RLIKE"),
+                Token::Operator(Operator::Logical(LogicalOperator::Glob)) => out.push_str("GLOB"),
+                Token::Operator(Operator::Logical(LogicalOperator::Match)) => out.push_str("MATCH"),
+                Token::Operator(Operator::Logical(LogicalOperator::Regexp)) => {
+                    out.push_str("REGEXP")
+                }
                 // Comparison operator
-                &Token::Operator(Operator::Comparison(ComparisonOperator::Equal)) => out.push('='),
-                &Token::Operator(Operator::Comparison(ComparisonOperator::Equal2)) => out.push_str("=="),
-                &Token::Operator(Operator::Comparison(ComparisonOperator::NullSafeEqual)) => out.push_str("<=>"),
-                &Token::Operator(Operator::Comparison(ComparisonOperator::GreaterThanOrEqual)) => out.push_str(">="),
-                &Token::Operator(Operator::Comparison(ComparisonOperator::LessThanOrEqual)) => out.push_str("<="),
-                &Token::Operator(Operator::Comparison(ComparisonOperator::EqualOrGreaterThan)) => out.push_str("=>"),
-                &Token::Operator(Operator::Comparison(ComparisonOperator::EqualOrLessThan)) => out.push_str("<="),
-                &Token::Operator(Operator::Comparison(ComparisonOperator::EqualWithArrows)) => out.push_str("<>"),
-                &Token::Operator(Operator::Comparison(ComparisonOperator::NotEqual)) => out.push_str("!="),
-                &Token::Operator(Operator::Comparison(ComparisonOperator::GreaterThan)) => out.push('>'),
-                &Token::Operator(Operator::Comparison(ComparisonOperator::LessThan)) => out.push('<'),
+                Token::Operator(Operator::Comparison(ComparisonOperator::Equal)) => out.push('='),
+                Token::Operator(Operator::Comparison(ComparisonOperator::Equal2)) => {
+                    out.push_str("==")
+                }
+                Token::Operator(Operator::Comparison(ComparisonOperator::NullSafeEqual)) => {
+                    out.push_str("<=>")
+                }
+                Token::Operator(Operator::Comparison(ComparisonOperator::GreaterThanOrEqual)) => {
+                    out.push_str(">=")
+                }
+                Token::Operator(Operator::Comparison(ComparisonOperator::LessThanOrEqual)) => {
+                    out.push_str("<=")
+                }
+                Token::Operator(Operator::Comparison(ComparisonOperator::EqualOrGreaterThan)) => {
+                    out.push_str("=>")
+                }
+                Token::Operator(Operator::Comparison(ComparisonOperator::EqualOrLessThan)) => {
+                    out.push_str("<=")
+                }
+                Token::Operator(Operator::Comparison(ComparisonOperator::EqualWithArrows)) => {
+                    out.push_str("<>")
+                }
+                Token::Operator(Operator::Comparison(ComparisonOperator::NotEqual)) => {
+                    out.push_str("!=")
+                }
+                Token::Operator(Operator::Comparison(ComparisonOperator::GreaterThan)) => {
+                    out.push('>')
+                }
+                Token::Operator(Operator::Comparison(ComparisonOperator::LessThan)) => {
+                    out.push('<')
+                }
                 // Bitwise operator
-                &Token::Operator(Operator::Bitwise(BitwiseOperator::LeftShift)) => out.push_str("<<"),
-                &Token::Operator(Operator::Bitwise(BitwiseOperator::RightShift)) => out.push_str(">>"),
-                &Token::Operator(Operator::Bitwise(BitwiseOperator::And)) => out.push('&'),
-                &Token::Operator(Operator::Bitwise(BitwiseOperator::Or)) => out.push('|'),
+                Token::Operator(Operator::Bitwise(BitwiseOperator::LeftShift)) => {
+                    out.push_str("<<")
+                }
+                Token::Operator(Operator::Bitwise(BitwiseOperator::RightShift)) => {
+                    out.push_str(">>")
+                }
+                Token::Operator(Operator::Bitwise(BitwiseOperator::And)) => out.push('&'),
+                Token::Operator(Operator::Bitwise(BitwiseOperator::Or)) => out.push('|'),
                 // JSON operator
-                &Token::Operator(Operator::Json(JsonOperator::SpecifiedPath)) => out.push_str("#>"),
-                &Token::Operator(Operator::Json(JsonOperator::SpecifiedPathAsText)) => out.push_str("#>>"),
+                Token::Operator(Operator::Json(JsonOperator::SpecifiedPath)) => out.push_str("#>"),
+                Token::Operator(Operator::Json(JsonOperator::SpecifiedPathAsText)) => {
+                    out.push_str("#>>")
+                }
                 // Keywords
-                &Token::Keyword(Keyword::Select) => out.push_str("SELECT"),
-                &Token::Keyword(Keyword::From) => out.push_str("FROM"),
-                &Token::Keyword(Keyword::Where) => out.push_str("WHERE"),
-                &Token::Keyword(Keyword::Update) => out.push_str("UPDATE"),
-                &Token::Keyword(Keyword::Set) => out.push_str("SET"),
-                &Token::Keyword(Keyword::Insert) => out.push_str("INSERT"),
-                &Token::Keyword(Keyword::Into) => out.push_str("INTO"),
-                &Token::Keyword(Keyword::Values) => out.push_str("VALUES"),
-                &Token::Keyword(Keyword::Inner) => out.push_str("INNER"),
-                &Token::Keyword(Keyword::Join) => out.push_str("JOIN"),
-                &Token::Keyword(Keyword::On) => out.push_str("ON"),
-                &Token::Keyword(Keyword::And) => out.push_str("AND"),
-                &Token::Keyword(Keyword::Or) => out.push_str("OR"),
-                &Token::Keyword(Keyword::Limit) => out.push_str("LIMIT"),
-                &Token::Keyword(Keyword::Offset) => out.push_str("OFFSET"),
-                &Token::Keyword(Keyword::Between) => out.push_str("BETWEEN"),
-                &Token::Keyword(Keyword::Array) => out.push_str("ARRAY"),
-                &Token::Keyword(Keyword::Other(ref slice)) => {
+                Token::Keyword(Keyword::Select) => out.push_str("SELECT"),
+                Token::Keyword(Keyword::From) => out.push_str("FROM"),
+                Token::Keyword(Keyword::Where) => out.push_str("WHERE"),
+                Token::Keyword(Keyword::Update) => out.push_str("UPDATE"),
+                Token::Keyword(Keyword::Set) => out.push_str("SET"),
+                Token::Keyword(Keyword::Insert) => out.push_str("INSERT"),
+                Token::Keyword(Keyword::Into) => out.push_str("INTO"),
+                Token::Keyword(Keyword::Values) => out.push_str("VALUES"),
+                Token::Keyword(Keyword::Inner) => out.push_str("INNER"),
+                Token::Keyword(Keyword::Join) => out.push_str("JOIN"),
+                Token::Keyword(Keyword::On) => out.push_str("ON"),
+                Token::Keyword(Keyword::And) => out.push_str("AND"),
+                Token::Keyword(Keyword::Or) => out.push_str("OR"),
+                Token::Keyword(Keyword::Limit) => out.push_str("LIMIT"),
+                Token::Keyword(Keyword::Offset) => out.push_str("OFFSET"),
+                Token::Keyword(Keyword::Between) => out.push_str("BETWEEN"),
+                Token::Keyword(Keyword::Array) => out.push_str("ARRAY"),
+                Token::Keyword(Keyword::Other(ref slice)) => {
                     out.push_str(self.sql.buffer_content(slice));
-                },
+                }
                 // Literal value type indicator
-                &Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::Binary) => out.push_str("BINARY"),
-                &Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::Date) => out.push_str("DATE"),
-                &Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::Time) => out.push_str("TIME"),
-                &Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::Timestamp) => out.push_str("TIMESTAMP"),
-                &Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::X) => out.push('x'),
-                &Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::ZeroX) => out.push_str("0x"),
-                &Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::B) => out.push('b'),
-                &Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::ZeroB) => out.push_str("0b"),
-                &Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::N) => out.push_str("n"),
-                &Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::Charset(ref slice)) => {
+                Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::Binary) => {
+                    out.push_str("BINARY")
+                }
+                Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::Date) => {
+                    out.push_str("DATE")
+                }
+                Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::Time) => {
+                    out.push_str("TIME")
+                }
+                Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::Timestamp) => {
+                    out.push_str("TIMESTAMP")
+                }
+                Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::X) => out.push('x'),
+                Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::ZeroX) => {
+                    out.push_str("0x")
+                }
+                Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::B) => out.push('b'),
+                Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::ZeroB) => {
+                    out.push_str("0b")
+                }
+                Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::N) => out.push('n'),
+                Token::LiteralValueTypeIndicator(LiteralValueTypeIndicator::Charset(ref slice)) => {
                     out.push('_');
                     out.push_str(self.sql.buffer_content(slice));
-                },
+                }
                 // Backticked
-                &Token::Backticked(ref slice) => {
+                Token::Backticked(ref slice) => {
                     out.push('`');
                     out.push_str(self.sql.buffer_content(slice));
                     out.push('`');
-                },
+                }
                 // Double quoted
-                &Token::DoubleQuoted(ref slice) => {
+                Token::DoubleQuoted(ref slice) => {
                     out.push('"');
                     out.push_str(self.sql.buffer_content(slice));
                     out.push('"');
-                },
+                }
                 // Single quoted
-                &Token::SingleQuoted(ref slice) => {
+                Token::SingleQuoted(ref slice) => {
                     out.push('\'');
                     out.push_str(self.sql.buffer_content(slice));
                     out.push('\'');
-                },
+                }
                 // Numeric
-                &Token::Numeric(ref slice) => {
+                Token::Numeric(ref slice) => {
                     out.push_str(self.sql.buffer_content(slice));
-                },
+                }
                 // Comment
-                &Token::Comment(ref slice) => {
+                Token::Comment(ref slice) => {
                     out.push_str(self.sql.buffer_content(slice));
-                },
+                }
                 // Generic tokens
-                &Token::Space => out.push(' '),
-                &Token::Newline => out.push('\n'),
-                &Token::Dot => out.push('.'),
-                &Token::Comma => out.push(','),
-                &Token::Wildcard => out.push('*'),
-                &Token::ParentheseOpen => out.push('('),
-                &Token::ParentheseClose => out.push(')'),
-                &Token::SquareBracketOpen => out.push('['),
-                &Token::SquareBracketClose => out.push(']'),
-                &Token::Colon => out.push(':'),
-                &Token::Semicolon => out.push(';'),
-                &Token::Placeholder => out.push('?'),
-                &Token::Null => out.push_str("NULL"),
-                &Token::NumberedPlaceholder(ref slice) => {
+                Token::Space => out.push(' '),
+                Token::Newline => out.push('\n'),
+                Token::Dot => out.push('.'),
+                Token::Comma => out.push(','),
+                Token::Wildcard => out.push('*'),
+                Token::ParentheseOpen => out.push('('),
+                Token::ParentheseClose => out.push(')'),
+                Token::SquareBracketOpen => out.push('['),
+                Token::SquareBracketClose => out.push(']'),
+                Token::Colon => out.push(':'),
+                Token::Semicolon => out.push(';'),
+                Token::Placeholder => out.push('?'),
+                Token::Null => out.push_str("NULL"),
+                Token::NumberedPlaceholder(ref slice) => {
                     out.push_str(self.sql.buffer_content(slice));
-                },
-                &Token::Unknown(c) => {
+                }
+                Token::Unknown(c) => {
                     out.push(c);
                 }
             }

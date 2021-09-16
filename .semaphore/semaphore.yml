@@ -9,18 +9,16 @@ agent:
 blocks:
   - name: 'Default'
     task:
+      prologue:
+        commands:
+          - checkout
       jobs:
         - name: Formatter and linter
           commands:
-            - checkout
             - rustup component add rustfmt clippy
-            - cache restore clippy-${SEMAPHORE_GIT_BRANCH}-${LOCK_CHECKSUM}
             - cargo fmt --verbose --all -- --check
             - cargo clippy
-            - cache store clippy-${SEMAPHORE_GIT_BRANCH}-${LOCK_CHECKSUM}
         - name: Build and tests
           commands:
-            - checkout
             - rustup toolchain install nightly
-            - cargo build --verbose
             - cargo +nightly test --verbose
