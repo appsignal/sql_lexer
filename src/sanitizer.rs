@@ -1,6 +1,6 @@
-use super::{Sql,Token,Keyword};
+use super::{Keyword, Sql, Token};
 
-#[derive(Debug,PartialEq)]
+#[derive(Debug, PartialEq)]
 enum State {
     Default,
     ComparisonOperator,
@@ -14,18 +14,16 @@ enum State {
     KeywordScopeStarted,
     Array,
     ArrayStarted,
-    LiteralValueTypeIndicator
+    LiteralValueTypeIndicator,
 }
 
 pub struct SqlSanitizer {
-    pub sql: Sql
+    pub sql: Sql,
 }
 
 impl SqlSanitizer {
     pub fn new(sql: Sql) -> SqlSanitizer {
-        SqlSanitizer {
-            sql: sql
-        }
+        SqlSanitizer { sql }
     }
 
     pub fn sanitize(mut self) -> Sql {
@@ -34,7 +32,7 @@ impl SqlSanitizer {
         let mut pos = 0;
         loop {
             if pos >= self.sql.tokens.len() {
-                break
+                break;
             }
 
             match self.sql.tokens[pos] {
@@ -49,51 +47,62 @@ impl SqlSanitizer {
                 Token::Keyword(Keyword::Insert) | Token::Keyword(Keyword::Into) => (),
                 Token::Keyword(_) => state = State::Keyword,
                 Token::LiteralValueTypeIndicator(_) => state = State::LiteralValueTypeIndicator,
-                Token::ParentheseOpen if state == State::ComparisonOperator => state = State::ComparisonScopeStarted,
-                Token::ParentheseOpen if state == State::Keyword => state = State::KeywordScopeStarted,
+                Token::ParentheseOpen if state == State::ComparisonOperator => {
+                    state = State::ComparisonScopeStarted
+                }
+                Token::ParentheseOpen if state == State::Keyword => {
+                    state = State::KeywordScopeStarted
+                }
                 Token::ParentheseOpen if state == State::InsertValues => (),
                 Token::SquareBracketOpen if state == State::Array => state = State::ArrayStarted,
-                Token::ParentheseClose if state == State::InsertValues => state = State::InsertValuesJustClosed,
+                Token::ParentheseClose if state == State::InsertValues => {
+                    state = State::InsertValuesJustClosed
+                }
                 Token::Comma if state == State::InsertValuesJustClosed => (),
-                Token::ParentheseOpen if state == State::InsertValuesJustClosed => state = State::InsertValues,
+                Token::ParentheseOpen if state == State::InsertValuesJustClosed => {
+                    state = State::InsertValues
+                }
                 Token::ParentheseClose | Token::SquareBracketClose => state = State::Default,
                 Token::Dot if state == State::JoinOn => (),
                 // This is content we might want to sanitize
-                Token::SingleQuoted(_) | Token::DoubleQuoted(_) | Token::Numeric(_) | Token::Null => {
+                Token::SingleQuoted(_)
+                | Token::DoubleQuoted(_)
+                | Token::Numeric(_)
+                | Token::Null => {
                     match state {
-                        State::ComparisonOperator |
-                        State::InsertValues |
-                        State::Offset |
-                        State::KeywordScopeStarted |
-                        State::Between |
-                        State::LiteralValueTypeIndicator=> {
+                        State::ComparisonOperator
+                        | State::InsertValues
+                        | State::Offset
+                        | State::KeywordScopeStarted
+                        | State::Between
+                        | State::LiteralValueTypeIndicator => {
                             self.placeholder(pos);
-                        },
+                        }
                         State::ComparisonScopeStarted | State::ArrayStarted => {
                             // We're in an IN () or ARRAY[] and it starts with content. Remove everything until
                             // the closing parenthese and put one placeholder in between.
                             let start_pos = pos;
                             loop {
                                 if pos >= self.sql.tokens.len() {
-                                    break
+                                    break;
                                 }
                                 match self.sql.tokens[pos] {
                                     Token::ParentheseClose => break,
                                     Token::SquareBracketClose => break,
-                                    _ => self.remove(pos)
+                                    _ => self.remove(pos),
                                 }
                             }
                             self.sql.tokens.insert(start_pos, Token::Placeholder);
                         }
-                        _ => ()
+                        _ => (),
                     }
-                },
+                }
                 // Spaces don't influence the state by default
                 Token::Space => (),
                 // Keep state the same if we're in a insert values or keyword scope state
                 _ if state == State::InsertValues || state == State::KeywordScopeStarted => (),
                 // Reset state to default if there were no matches
-                _ => state = State::Default
+                _ => state = State::Default,
             }
 
             pos += 1;
@@ -119,7 +128,9 @@ mod tests {
     #[test]
     fn test_select_where_single_quote() {
         assert_eq!(
-            sanitize_string("SELECT `table`.* FROM `table` WHERE `id` = 'secret' LIMIT 1;".to_string()),
+            sanitize_string(
+                "SELECT `table`.* FROM `table` WHERE `id` = 'secret' LIMIT 1;".to_string()
+            ),
             "SELECT `table`.* FROM `table` WHERE `id` = ? LIMIT 1;"
         );
     }
@@ -127,7 +138,9 @@ mod tests {
     #[test]
     fn test_select_where_double_quote() {
         assert_eq!(
-            sanitize_string("SELECT `table`.* FROM `table` WHERE `id` = \"secret\" LIMIT 1;".to_string()),
+            sanitize_string(
+                "SELECT `table`.* FROM `table` WHERE `id` = \"secret\" LIMIT 1;".to_string()
+            ),
             "SELECT `table`.* FROM `table` WHERE `id` = ? LIMIT 1;"
         );
     }
@@ -159,7 +172,10 @@ mod tests {
     #[test]
     fn test_select_where_with_function() {
         assert_eq!(
-            sanitize_string("SELECT `table`.* FROM `table` WHERE `name` = UPPERCASE('lower') LIMIT 1;".to_string()),
+            sanitize_string(
+                "SELECT `table`.* FROM `table` WHERE `name` = UPPERCASE('lower') LIMIT 1;"
+                    .to_string()
+            ),
             "SELECT `table`.* FROM `table` WHERE `name` = UPPERCASE(?) LIMIT 1;"
         );
     }
@@ -167,7 +183,10 @@ mod tests {
     #[test]
     fn test_select_where_with_function_multiple_args() {
         assert_eq!(
-            sanitize_string("SELECT `table`.* FROM `table` WHERE `name` = COMMAND('table', 'lower') LIMIT 1;".to_string()),
+            sanitize_string(
+                "SELECT `table`.* FROM `table` WHERE `name` = COMMAND('table', 'lower') LIMIT 1;"
+                    .to_string()
+            ),
             "SELECT `table`.* FROM `table` WHERE `name` = COMMAND(?, ?) LIMIT 1;"
         );
     }
@@ -175,7 +194,10 @@ mod tests {
     #[test]
     fn test_select_where_with_function_mixed_args() {
         assert_eq!(
-            sanitize_string("SELECT `table`.* FROM `table` WHERE `name` = COMMAND(`table`, 'lower') LIMIT 1;".to_string()),
+            sanitize_string(
+                "SELECT `table`.* FROM `table` WHERE `name` = COMMAND(`table`, 'lower') LIMIT 1;"
+                    .to_string()
+            ),
             "SELECT `table`.* FROM `table` WHERE `name` = COMMAND(`table`, ?) LIMIT 1;"
         );
     }
@@ -215,7 +237,9 @@ mod tests {
     #[test]
     fn test_select_between_and() {
         assert_eq!(
-            sanitize_string("SELECT `table`.* FROM `table` WHERE `field` BETWEEN 5 AND 10;".to_string()),
+            sanitize_string(
+                "SELECT `table`.* FROM `table` WHERE `field` BETWEEN 5 AND 10;".to_string()
+            ),
             "SELECT `table`.* FROM `table` WHERE `field` BETWEEN ? AND ?;"
         );
     }
@@ -223,7 +247,10 @@ mod tests {
     #[test]
     fn test_select_and_with_scope_and_unquoted_field() {
         assert_eq!(
-            sanitize_string("SELECT `table`.* FROM `table` WHERE `id` = 1 AND (other_field = 1) LIMIT 1;".to_string()),
+            sanitize_string(
+                "SELECT `table`.* FROM `table` WHERE `id` = 1 AND (other_field = 1) LIMIT 1;"
+                    .to_string()
+            ),
             "SELECT `table`.* FROM `table` WHERE `id` = ? AND (other_field = ?) LIMIT 1;"
         );
     }
@@ -263,7 +290,10 @@ mod tests {
     #[test]
     fn test_date_modifier() {
         assert_eq!(
-            sanitize_string("SELECT * FROM `posts` WHERE `field` = DATE 'str' AND `field2` = DATE'str'".to_string()),
+            sanitize_string(
+                "SELECT * FROM `posts` WHERE `field` = DATE 'str' AND `field2` = DATE'str'"
+                    .to_string()
+            ),
             "SELECT * FROM `posts` WHERE `field` = DATE ? AND `field2` = DATE?"
         )
     }
@@ -279,7 +309,10 @@ mod tests {
     #[test]
     fn test_string_modifier() {
         assert_eq!(
-            sanitize_string("SELECT * FROM `posts` WHERE `field` = n'str' AND `field2` = _utf8'str'".to_string()),
+            sanitize_string(
+                "SELECT * FROM `posts` WHERE `field` = n'str' AND `field2` = _utf8'str'"
+                    .to_string()
+            ),
             "SELECT * FROM `posts` WHERE `field` = n? AND `field2` = _utf8?"
         )
     }
@@ -287,7 +320,9 @@ mod tests {
     #[test]
     fn test_select_in() {
         assert_eq!(
-            sanitize_string("SELECT `table`.* FROM `table` WHERE `id` IN (1, 2, 3) LIMIT 1;".to_string()),
+            sanitize_string(
+                "SELECT `table`.* FROM `table` WHERE `id` IN (1, 2, 3) LIMIT 1;".to_string()
+            ),
             "SELECT `table`.* FROM `table` WHERE `id` IN (?) LIMIT 1;"
         );
     }
@@ -303,7 +338,10 @@ mod tests {
     #[test]
     fn test_select_array() {
         assert_eq!(
-            sanitize_string("SELECT * FROM \"table\" WHERE \"field\" = ARRAY['item_1','item_2','item_3'];".to_string()),
+            sanitize_string(
+                "SELECT * FROM \"table\" WHERE \"field\" = ARRAY['item_1','item_2','item_3'];"
+                    .to_string()
+            ),
             "SELECT * FROM \"table\" WHERE \"field\" = ARRAY[?];"
         );
     }
@@ -326,7 +364,7 @@ mod tests {
 
     #[test]
     fn test_select_with_functions_regex_and_newlines() {
-        let original =  "SELECT a.attname, format_type(a.atttypid, a.atttypmod),
+        let original = "SELECT a.attname, format_type(a.atttypid, a.atttypmod),
                          pg_get_expr(d.adbin, d.adrelid), a.attnotnull, a.atttypid, a.atttypmod
                          FROM pg_attribute a LEFT JOIN pg_attrdef d
                          ON a.attrelid = d.adrelid AND a.attnum = d.adnum
@@ -342,16 +380,15 @@ mod tests {
                          AND a.attnum > ? AND NOT a.attisdropped
                          ORDER BY a.attnum;";
 
-        assert_eq!(
-            sanitize_string(original.to_string()),
-            sanitized
-        );
+        assert_eq!(sanitize_string(original.to_string()), sanitized);
     }
 
     #[test]
     fn test_update_backquote_tables() {
         assert_eq!(
-            sanitize_string("UPDATE `table` SET `field` = \"value\", `field2` = 1 WHERE id = 1;".to_string()),
+            sanitize_string(
+                "UPDATE `table` SET `field` = \"value\", `field2` = 1 WHERE id = 1;".to_string()
+            ),
             "UPDATE `table` SET `field` = ?, `field2` = ? WHERE id = ?;"
         );
     }
@@ -359,7 +396,10 @@ mod tests {
     #[test]
     fn test_update_double_quote_tables() {
         assert_eq!(
-            sanitize_string("UPDATE \"table\" SET \"field1\" = 'value', \"field2\" = 1 WHERE id = 1;".to_string()),
+            sanitize_string(
+                "UPDATE \"table\" SET \"field1\" = 'value', \"field2\" = 1 WHERE id = 1;"
+                    .to_string()
+            ),
             "UPDATE \"table\" SET \"field1\" = ?, \"field2\" = ? WHERE id = ?;"
         );
     }
@@ -367,7 +407,10 @@ mod tests {
     #[test]
     fn test_insert_backquote_tables() {
         assert_eq!(
-            sanitize_string("INSERT INTO `table` (`field1`, `field2`) VALUES ('value', 1, -1.0, 'value');".to_string()),
+            sanitize_string(
+                "INSERT INTO `table` (`field1`, `field2`) VALUES ('value', 1, -1.0, 'value');"
+                    .to_string()
+            ),
             "INSERT INTO `table` (`field1`, `field2`) VALUES (?, ?, ?, ?);"
         );
     }
@@ -407,7 +450,9 @@ mod tests {
     #[test]
     fn test_insert_null() {
         assert_eq!(
-            sanitize_string("INSERT INTO \"table\" (\"field1\", \"field2\") VALUES (NULL, 1);".to_string()),
+            sanitize_string(
+                "INSERT INTO \"table\" (\"field1\", \"field2\") VALUES (NULL, 1);".to_string()
+            ),
             "INSERT INTO \"table\" (\"field1\", \"field2\") VALUES (?, ?);"
         );
     }
@@ -440,16 +485,16 @@ mod tests {
     fn test_keep_placeholders() {
         let sql = "SELECT \"users\".* FROM \"users\" WHERE \"users\".\"type\" IN (?) AND \"users\".\"active\" = $1";
 
-        assert_eq!(
-            sanitize_string(sql.to_string()),
-            sql
-        );
+        assert_eq!(sanitize_string(sql.to_string()), sql);
     }
 
     #[test]
     fn test_json_operations() {
         assert_eq!(
-            sanitize_string("SELECT table.*, NULLIF((table2.json_col #>> '{obj1,obj2}')::float, 0) FROM table".to_string()),
+            sanitize_string(
+                "SELECT table.*, NULLIF((table2.json_col #>> '{obj1,obj2}')::float, 0) FROM table"
+                    .to_string()
+            ),
             "SELECT table.*, NULLIF((table2.json_col #>> ?)::float, 0) FROM table"
         )
     }

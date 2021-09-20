@@ -1,12 +1,13 @@
 #![cfg_attr(test, feature(test))]
 
-#[cfg(test)] extern crate test;
+#[cfg(test)]
+extern crate test;
 
 mod lexer;
 mod sanitizer;
 mod writer;
 
-#[derive(Debug,PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum Keyword {
     Select,  // SELECT
     From,    // FROM
@@ -25,40 +26,40 @@ pub enum Keyword {
     Offset,  // OFFSET
     Between, // BETWEEN
     Array,   // ARRAY
-    Other(BufferSlice)
+    Other(BufferSlice),
 }
 
-#[derive(Debug,PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum Operator {
     Arithmetic(ArithmeticOperator),
     Logical(LogicalOperator),
     Comparison(ComparisonOperator),
     Bitwise(BitwiseOperator),
-    Json(JsonOperator)
+    Json(JsonOperator),
 }
 
-#[derive(Debug,PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum ArithmeticOperator {
     Multiply, // *
     Divide,   // /
     Modulo,   // %
     Plus,     // +
-    Minus     // -
+    Minus,    // -
 }
 
-#[derive(Debug,PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum LogicalOperator {
-    In,    // IN
-    Not,   // NOT
-    Like,  // LIKE
-    Ilike, // ILIKE
-    Rlike, // RLIKE
-    Glob,  // GLOB
-    Match, // MATCH
-    Regexp // REGEXP
+    In,     // IN
+    Not,    // NOT
+    Like,   // LIKE
+    Ilike,  // ILIKE
+    Rlike,  // RLIKE
+    Glob,   // GLOB
+    Match,  // MATCH
+    Regexp, // REGEXP
 }
 
-#[derive(Debug,PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum ComparisonOperator {
     Equal,              // =
     Equal2,             // ==
@@ -70,53 +71,50 @@ pub enum ComparisonOperator {
     EqualWithArrows,    // <>
     NotEqual,           // !=
     GreaterThan,        // >
-    LessThan            // <
+    LessThan,           // <
 }
 
-#[derive(Debug,PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum BitwiseOperator {
     LeftShift,  // <<
     RightShift, // >>
     And,        // &
-    Or          // |
+    Or,         // |
 }
 
-#[derive(Debug,PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum JsonOperator {
-    SpecifiedPath, // #>
-    SpecifiedPathAsText // #>>
+    SpecifiedPath,       // #>
+    SpecifiedPathAsText, // #>>
 }
 
-#[derive(Debug,PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum LiteralValueTypeIndicator {
-    Binary,              // BINARY
-    Date,                // DATE
-    Time,                // TIME
-    Timestamp,           // TIMESTAMP
-    X,                   // Hexadecimal literal
-    ZeroX,               // Hexadecimal literal
-    B,                   // Bit field
-    ZeroB,               // Bit field
-    N,                   // National character set
-    Charset(BufferSlice) // Character set
+    Binary,               // BINARY
+    Date,                 // DATE
+    Time,                 // TIME
+    Timestamp,            // TIMESTAMP
+    X,                    // Hexadecimal literal
+    ZeroX,                // Hexadecimal literal
+    B,                    // Bit field
+    ZeroB,                // Bit field
+    N,                    // National character set
+    Charset(BufferSlice), // Character set
 }
 
-#[derive(Debug,PartialEq)]
+#[derive(Debug, PartialEq)]
 pub struct BufferSlice {
     pub start: usize,
-    pub end: usize
+    pub end: usize,
 }
 
 impl BufferSlice {
     pub fn new(start: usize, end: usize) -> BufferSlice {
-        BufferSlice {
-            start: start,
-            end: end
-        }
+        BufferSlice { start, end }
     }
 }
 
-#[derive(Debug,PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum Token {
     Operator(Operator),
     Keyword(Keyword),
@@ -140,13 +138,13 @@ pub enum Token {
     Placeholder,
     Null,
     NumberedPlaceholder(BufferSlice),
-    Unknown(char)
+    Unknown(char),
 }
 
-#[derive(Debug,PartialEq)]
+#[derive(Debug, PartialEq)]
 pub struct Sql {
     buf: String,
-    pub tokens: Vec<Token>
+    pub tokens: Vec<Token>,
 }
 
 impl Sql {
@@ -154,7 +152,7 @@ impl Sql {
         let len = self.buf.len();
         if pos.end < pos.start || pos.start > len || pos.end > len {
             // If the positions are out of bounds return a blank string
-            return ""
+            return "";
         }
         &self.buf[pos.start..pos.end]
     }
@@ -183,15 +181,15 @@ pub fn sanitize_string(buf: String) -> String {
 
 #[cfg(test)]
 mod tests {
-    use test;
     use super::Sql;
-    use super::{Token,Operator,BufferSlice,Keyword,ComparisonOperator};
+    use super::{BufferSlice, ComparisonOperator, Keyword, Operator, Token};
+    use test;
 
     #[test]
     fn test_buffer_content() {
         let sql = Sql {
             buf: "SELECT `table`.* FROM `table` WHERE `id` = 'secret';".to_string(),
-            tokens: Vec::new()
+            tokens: Vec::new(),
         };
         let buffer_position = BufferSlice::new(17, 21);
 
@@ -202,7 +200,7 @@ mod tests {
     fn test_buffer_content_multibyte_characters() {
         let sql = Sql {
             buf: "\"hæld\" ; 'jæld' ; `tæld`".to_string(),
-            tokens: Vec::new()
+            tokens: Vec::new(),
         };
 
         assert_eq!("hæld", sql.buffer_content(&BufferSlice::new(1, 6)));
@@ -214,7 +212,7 @@ mod tests {
     fn test_buffer_content_wrong_order() {
         let sql = Sql {
             buf: "buffer content".to_string(),
-            tokens: Vec::new()
+            tokens: Vec::new(),
         };
         let buffer_position = BufferSlice::new(6, 1);
 
@@ -225,7 +223,7 @@ mod tests {
     fn test_buffer_content_out_of_bounds() {
         let sql = Sql {
             buf: "buffer content".to_string(),
-            tokens: Vec::new()
+            tokens: Vec::new(),
         };
         let buffer_position = BufferSlice::new(100, 200);
 
@@ -236,7 +234,7 @@ mod tests {
     fn test_buffer_content_out_of_bounds_partially() {
         let sql = Sql {
             buf: "buffer content".to_string(),
-            tokens: Vec::new()
+            tokens: Vec::new(),
         };
         let buffer_position = BufferSlice::new(0, 200);
 
@@ -254,7 +252,7 @@ mod tests {
             Token::Space,
             Token::Keyword(Keyword::From),
             Token::Space,
-            Token::Backticked(BufferSlice::new(15, 20))
+            Token::Backticked(BufferSlice::new(15, 20)),
         ];
 
         let sql = super::lex(sql_buffer.to_string());
@@ -270,7 +268,9 @@ mod tests {
 
     #[test]
     fn test_sanitize() {
-        let sql = super::sanitize(super::lex("SELECT * FROM `table` WHERE `id` = 1;".to_string()));
+        let sql = super::sanitize(super::lex(
+            "SELECT * FROM `table` WHERE `id` = 1;".to_string(),
+        ));
 
         let expected = vec![
             Token::Keyword(Keyword::Select),
@@ -288,7 +288,7 @@ mod tests {
             Token::Operator(Operator::Comparison(ComparisonOperator::Equal)),
             Token::Space,
             Token::Placeholder,
-            Token::Semicolon
+            Token::Semicolon,
         ];
 
         assert_eq!(sql.tokens, expected);
@@ -305,28 +305,36 @@ mod tests {
     #[bench]
     fn bench_sanitize_string_quote(b: &mut test::Bencher) {
         b.iter(|| {
-            test::black_box(super::sanitize_string("SELECT `table`.* FROM `table` WHERE `id` = 'secret' LIMIT 1;".to_string()));
+            test::black_box(super::sanitize_string(
+                "SELECT `table`.* FROM `table` WHERE `id` = 'secret' LIMIT 1;".to_string(),
+            ));
         });
     }
 
     #[bench]
     fn bench_sanitize_string_numeric(b: &mut test::Bencher) {
         b.iter(|| {
-            test::black_box(super::sanitize_string("SELECT `table`.* FROM `table` WHERE `id` = 1 LIMIT 1;".to_string()));
+            test::black_box(super::sanitize_string(
+                "SELECT `table`.* FROM `table` WHERE `id` = 1 LIMIT 1;".to_string(),
+            ));
         });
     }
 
     #[bench]
     fn bench_sanitize_string_in(b: &mut test::Bencher) {
         b.iter(|| {
-            test::black_box(super::sanitize_string("SELECT `table`.* FROM `table` WHERE `id` IN (1, 2, 3) LIMIT 1;".to_string()));
+            test::black_box(super::sanitize_string(
+                "SELECT `table`.* FROM `table` WHERE `id` IN (1, 2, 3) LIMIT 1;".to_string(),
+            ));
         });
     }
 
     #[bench]
     fn bench_sanitize_insert(b: &mut test::Bencher) {
         b.iter(|| {
-            test::black_box(super::sanitize_string("INSERT INTO \"table\" (\"field1\", \"field2\") VALUES ('value', 1);".to_string()));
+            test::black_box(super::sanitize_string(
+                "INSERT INTO \"table\" (\"field1\", \"field2\") VALUES ('value', 1);".to_string(),
+            ));
         });
     }
 }
