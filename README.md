@@ -1,7 +1,7 @@
 # SQL lexer
 
 [![Build Status](https://appsignal.semaphoreci.com/badges/sql_lexer/branches/main.svg)](https://appsignal.semaphoreci.com/projects/sql_lexer)
-[![Crate](http://meritbadge.herokuapp.com/sql_lexer)](https://crates.io/crates/sql_lexer)
+[![Crate](https://img.shields.io/crates/v/sql_lexer.svg)](https://crates.io/crates/sql_lexer)
 
 Rust library to lex and sanitize SQL. To lex a query and write back to a string:
 
@@ -46,8 +46,8 @@ cargo run -- <path-to-file>
 
 Licensed under either of
 
- * Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
- * MIT license ([LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT)
+ * Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) or https://www.apache.org/licenses/LICENSE-2.0)
+ * MIT license ([LICENSE-MIT](LICENSE-MIT) or https://opensource.org/licenses/MIT)
 
 at your option.
 
