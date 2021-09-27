@@ -1,7 +1,7 @@
 # SQL lexer
 
 [![Build Status](https://appsignal.semaphoreci.com/badges/sql_lexer/branches/main.svg)](https://appsignal.semaphoreci.com/projects/sql_lexer)
-[![Crate](http://meritbadge.herokuapp.com/sql_lexer)](https://crates.io/crates/sql_lexer)
+[Crate](https://crates.io/crates/sql_lexer)
 
 Rust library to lex and sanitize SQL. To lex a query and write back to a string:
 
