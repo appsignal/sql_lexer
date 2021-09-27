@@ -25,13 +25,13 @@ fn main() {
 }
 ```
 
-This wil output:
+This will output:
 
 ```sql
 SELECT * FROM `table` WHERE id = ?
 ```
 
-The documentation is available [here](https://docs.rs/sql_lexer/0.9.1/sql_lexer/).
+The documentation is available [here](https://docs.rs/sql_lexer).
 
 ## Command line
 
