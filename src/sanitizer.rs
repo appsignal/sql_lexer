@@ -44,6 +44,12 @@ impl SqlSanitizer {
                 Token::Keyword(Keyword::Between) => state = State::Between,
                 Token::Keyword(Keyword::Array) => state = State::Array,
                 Token::Keyword(Keyword::And) if state == State::Between => (),
+                Token::Keyword(Keyword::And) if state == State::Keyword => {
+                    state = State::KeywordScopeStarted
+                }
+                Token::Keyword(Keyword::Or) if state == State::Keyword => {
+                    state = State::KeywordScopeStarted
+                }
                 Token::Keyword(Keyword::Insert) | Token::Keyword(Keyword::Into) => (),
                 Token::Keyword(_) => state = State::Keyword,
                 Token::LiteralValueTypeIndicator(_) => state = State::LiteralValueTypeIndicator,
@@ -276,6 +282,14 @@ mod tests {
         assert_eq!(
             sanitize_string("SELECT `posts`.* FROM `posts` WHERE (created_at >= '2016-01-10 13:34:46.647328' OR updated_at >= '2016-01-10 13:34:46.647328')".to_string()),
             "SELECT `posts`.* FROM `posts` WHERE (created_at >= ? OR updated_at >= ?)"
+        );
+    }
+
+    #[test]
+    fn test_select_reversed_comparison_operators() {
+        assert_eq!(
+            sanitize_string("SELECT `posts`.* FROM `posts` WHERE ('2016-01-10' >= created_at AND '2016-01-10' <= updated_at OR '2021-10-22' = published_at)".to_string()),
+            "SELECT `posts`.* FROM `posts` WHERE (? >= created_at AND ? <= updated_at OR ? = published_at)"
         );
     }
 
