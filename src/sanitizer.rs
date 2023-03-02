@@ -114,6 +114,23 @@ impl SqlSanitizer {
             pos += 1;
         }
 
+        pos = self.sql.tokens.len() - 1;
+
+        // Remove trailing comments
+        loop {
+            match self.sql.tokens[pos] {
+                Token::Comment(_) | Token::Space => self.remove(pos),
+                Token::Semicolon => (),
+                _ => break,
+            }
+
+            if pos == 0 {
+                break;
+            }
+
+            pos -= 1;
+        }
+
         self.sql
     }
 
@@ -474,8 +491,8 @@ mod tests {
     #[test]
     fn test_comment_pound() {
         assert_eq!(
-            sanitize_string("SELECT * FROM table # This is a comment".to_string()),
-            "SELECT * FROM table # This is a comment"
+            sanitize_string("SELECT * FROM table # This is a comment\n SELECT".to_string()),
+            "SELECT * FROM table # This is a comment\n SELECT"
         );
     }
 
@@ -511,5 +528,38 @@ mod tests {
             ),
             "SELECT table.*, NULLIF((table2.json_col #>> ?)::float, 0) FROM table"
         )
+    }
+
+    #[test]
+    fn test_remove_trailing_comments_multiline() {
+        assert_eq!(
+            sanitize_string(
+                "SELECT table.* FROM table; /* trace: a1b2c3d4e5f6 */"
+                    .to_string()
+            ),
+            "SELECT table.* FROM table;"
+        );
+    }
+
+    #[test]
+    fn test_remove_trailing_comments_inline() {
+        assert_eq!(
+            sanitize_string(
+                "SELECT table.* FROM table; -- trace: a1b2c3d4e5f6"
+                    .to_string()
+            ),
+            "SELECT table.* FROM table;"
+        );
+    }
+
+    #[test]
+    fn test_remove_trailing_comments_before_semicolon() {
+        assert_eq!(
+            sanitize_string(
+                "SELECT table.* FROM table /* trace: a1b2c3d4e5f6 */;"
+                    .to_string()
+            ),
+            "SELECT table.* FROM table;"
+        );
     }
 }
