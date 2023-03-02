@@ -1,6 +1,6 @@
 use super::{Keyword, Sql, Token};
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Copy, Clone)]
 enum State {
     Default,
     ComparisonOperator,
@@ -35,6 +35,8 @@ impl SqlSanitizer {
                 break;
             }
 
+            let prev_state = state;
+
             match self.sql.tokens[pos] {
                 // Determine if we want to change or keep state
                 Token::Operator(_) if state != State::JoinOn => state = State::ComparisonOperator,
@@ -51,6 +53,7 @@ impl SqlSanitizer {
                     state = State::KeywordScopeStarted
                 }
                 Token::Keyword(Keyword::Insert) | Token::Keyword(Keyword::Into) => (),
+                Token::Keyword(_) if state == State::KeywordScopeStarted => state = State::KeywordScopeStarted,
                 Token::Keyword(_) => state = State::Keyword,
                 Token::LiteralValueTypeIndicator(_) => state = State::LiteralValueTypeIndicator,
                 Token::ParentheseOpen if state == State::ComparisonOperator => {
@@ -110,6 +113,11 @@ impl SqlSanitizer {
                 // Reset state to default if there were no matches
                 _ => state = State::Default,
             }
+
+            println!(
+                "prev: {:?}, here: {:?}, now: {:?}",
+                prev_state, self.sql.tokens[pos], state
+            );
 
             pos += 1;
         }
@@ -560,6 +568,26 @@ mod tests {
                     .to_string()
             ),
             "SELECT table.* FROM table;"
+        );
+    }
+
+    #[test]
+    fn test_select_jsonb_extract_path() {
+        assert_eq!(
+            sanitize_string(
+                "SELECT jsonb_extract_path(table.data, 'foo', 22) FROM table;".to_string()
+            ),
+            "SELECT jsonb_extract_path(table.data, ?, ?) FROM table;"
+        );
+    }
+
+    #[test]
+    fn test_where_jsonb_extract_path() {
+        assert_eq!(
+            sanitize_string(
+                "SELECT id FROM table WHERE jsonb_extract_path(table.data, 'foo', 22) == 'bar';".to_string()
+            ),
+            "SELECT id FROM table WHERE jsonb_extract_path(table.data, ?, ?) == ?;"
         );
     }
 }
