@@ -12,6 +12,8 @@ blocks:
       prologue:
         commands:
           - checkout
+          - rustup toolchain install nightly
+          - rustup default nightly
       jobs:
         - name: Formatter and linter
           commands:
@@ -20,5 +22,4 @@ blocks:
             - cargo clippy
         - name: Build and tests
           commands:
-            - rustup toolchain install nightly
-            - cargo +nightly test --verbose
+            - cargo test --verbose
