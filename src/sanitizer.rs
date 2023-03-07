@@ -35,7 +35,7 @@ impl SqlSanitizer {
                 break;
             }
 
-            match self.sql.tokens[pos] {
+            match &self.sql.tokens[pos] {
                 // Determine if we want to change or keep state
                 Token::Operator(_) if state != State::JoinOn => state = State::ComparisonOperator,
                 Token::Keyword(Keyword::Values) => state = State::InsertValues,
@@ -51,6 +51,9 @@ impl SqlSanitizer {
                     state = State::KeywordScopeStarted
                 }
                 Token::Keyword(Keyword::Insert) | Token::Keyword(Keyword::Into) => (),
+                Token::Keyword(_) if state == State::KeywordScopeStarted => {
+                    state = State::KeywordScopeStarted
+                }
                 Token::Keyword(_) => state = State::Keyword,
                 Token::LiteralValueTypeIndicator(_) => state = State::LiteralValueTypeIndicator,
                 Token::ParentheseOpen if state == State::ComparisonOperator => {
@@ -71,10 +74,10 @@ impl SqlSanitizer {
                 Token::ParentheseClose | Token::SquareBracketClose => state = State::Default,
                 Token::Dot if state == State::JoinOn => (),
                 // This is content we might want to sanitize
-                Token::SingleQuoted(_)
+                token @ (Token::SingleQuoted(_)
                 | Token::DoubleQuoted(_)
                 | Token::Numeric(_)
-                | Token::Null => {
+                | Token::Null) => {
                     match state {
                         State::ComparisonOperator
                         | State::InsertValues
@@ -82,7 +85,19 @@ impl SqlSanitizer {
                         | State::KeywordScopeStarted
                         | State::Between
                         | State::LiteralValueTypeIndicator => {
-                            self.placeholder(pos);
+                            // Double quoted might (standard SQL) or might not (MySQL) be an identifier,
+                            // but if it's a component in a dotted path, then we know it's part of an
+                            // identifier and we should definitely not replace it with a placeholder.
+                            match token {
+                                Token::DoubleQuoted(_) => {
+                                    if !(self.sql.tokens.get(pos - 1) == Some(&Token::Dot)
+                                        || self.sql.tokens.get(pos + 1) == Some(&Token::Dot))
+                                    {
+                                        self.placeholder(pos)
+                                    }
+                                }
+                                _ => self.placeholder(pos),
+                            }
                         }
                         State::ComparisonScopeStarted | State::ArrayStarted => {
                             // We're in an IN () or ARRAY[] and it starts with content. Remove everything until
@@ -112,6 +127,23 @@ impl SqlSanitizer {
             }
 
             pos += 1;
+        }
+
+        pos = self.sql.tokens.len() - 1;
+
+        // Remove trailing comments
+        loop {
+            match self.sql.tokens[pos] {
+                Token::Comment(_) | Token::Space => self.remove(pos),
+                Token::Semicolon => (),
+                _ => break,
+            }
+
+            if pos == 0 {
+                break;
+            }
+
+            pos -= 1;
         }
 
         self.sql
@@ -474,8 +506,8 @@ mod tests {
     #[test]
     fn test_comment_pound() {
         assert_eq!(
-            sanitize_string("SELECT * FROM table # This is a comment".to_string()),
-            "SELECT * FROM table # This is a comment"
+            sanitize_string("SELECT * FROM table # This is a comment\n SELECT".to_string()),
+            "SELECT * FROM table # This is a comment\n SELECT"
         );
     }
 
@@ -511,5 +543,71 @@ mod tests {
             ),
             "SELECT table.*, NULLIF((table2.json_col #>> ?)::float, 0) FROM table"
         )
+    }
+
+    #[test]
+    fn test_remove_trailing_comments_multiline() {
+        assert_eq!(
+            sanitize_string("SELECT table.* FROM table; /* trace: a1b2c3d4e5f6 */".to_string()),
+            "SELECT table.* FROM table;"
+        );
+    }
+
+    #[test]
+    fn test_remove_trailing_comments_inline() {
+        assert_eq!(
+            sanitize_string("SELECT table.* FROM table; -- trace: a1b2c3d4e5f6".to_string()),
+            "SELECT table.* FROM table;"
+        );
+    }
+
+    #[test]
+    fn test_remove_trailing_comments_before_semicolon() {
+        assert_eq!(
+            sanitize_string("SELECT table.* FROM table /* trace: a1b2c3d4e5f6 */;".to_string()),
+            "SELECT table.* FROM table;"
+        );
+    }
+
+    #[test]
+    fn test_select_jsonb_extract_path() {
+        assert_eq!(
+            sanitize_string(
+                "SELECT jsonb_extract_path(table.data, 'foo', 22) FROM table;".to_string()
+            ),
+            "SELECT jsonb_extract_path(table.data, ?, ?) FROM table;"
+        );
+    }
+
+    #[test]
+    fn test_select_jsonb_extract_path_quoted_identifier() {
+        assert_eq!(
+            sanitize_string(
+                "SELECT jsonb_extract_path(\"table\".\"data\", 'foo', 22) FROM \"table\";"
+                    .to_string()
+            ),
+            "SELECT jsonb_extract_path(\"table\".\"data\", ?, ?) FROM \"table\";"
+        );
+    }
+
+    #[test]
+    fn test_where_jsonb_extract_path() {
+        assert_eq!(
+            sanitize_string(
+                "SELECT id FROM table WHERE jsonb_extract_path(table.data, 'foo', 22) = 'bar';"
+                    .to_string()
+            ),
+            "SELECT id FROM table WHERE jsonb_extract_path(table.data, ?, ?) = ?;"
+        );
+    }
+
+    #[test]
+    fn test_where_quoted_identifier_in_parenthesis() {
+        assert_eq!(
+            sanitize_string(
+                r#"SELECT "table"."id" FROM "table" WHERE ("table"."data" = 'foo');"#.to_string()
+            ),
+            r#"SELECT "table"."id" FROM "table" WHERE ("table"."data" = ?);"#
+        );
     }
 }
