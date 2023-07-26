@@ -382,6 +382,17 @@ mod tests {
     }
 
     #[test]
+    fn test_case_then_else_subquery() {
+        assert_eq!(
+            sanitize_string(
+                "CASE WHEN NOT EXISTS (SELECT * FROM `table` WHERE `id` = 1) THEN 1 ELSE '0' END;"
+                    .to_string()
+            ),
+            "CASE WHEN NOT EXISTS (SELECT * FROM `table` WHERE `id` = ?) THEN ? ELSE ? END;"
+        );
+    }
+
+    #[test]
     fn test_select_array() {
         assert_eq!(
             sanitize_string(

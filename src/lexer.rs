@@ -315,6 +315,12 @@ impl SqlLexer {
                         s if s.eq_ignore_ascii_case("not") => {
                             Token::Operator(Operator::Logical(LogicalOperator::Not))
                         }
+                        s if s.eq_ignore_ascii_case("then") => {
+                            Token::Operator(Operator::Logical(LogicalOperator::Then))
+                        }
+                        s if s.eq_ignore_ascii_case("else") => {
+                            Token::Operator(Operator::Logical(LogicalOperator::Else))
+                        }
                         s if s.eq_ignore_ascii_case("like") => {
                             Token::Operator(Operator::Logical(LogicalOperator::Like))
                         }
@@ -626,7 +632,7 @@ mod tests {
 
     #[test]
     fn test_logical_operators_uppercase() {
-        let sql = "IN NOT LIKE ILIKE RLIKE GLOB MATCH REGEXP".to_string();
+        let sql = "IN NOT LIKE ILIKE RLIKE GLOB MATCH REGEXP THEN ELSE".to_string();
         let lexer = SqlLexer::new(sql);
 
         let expected = vec![
@@ -645,6 +651,10 @@ mod tests {
             Token::Operator(Operator::Logical(LogicalOperator::Match)),
             Token::Space,
             Token::Operator(Operator::Logical(LogicalOperator::Regexp)),
+            Token::Space,
+            Token::Operator(Operator::Logical(LogicalOperator::Then)),
+            Token::Space,
+            Token::Operator(Operator::Logical(LogicalOperator::Else)),
         ];
 
         assert_eq!(lexer.lex().tokens, expected);
@@ -652,7 +662,7 @@ mod tests {
 
     #[test]
     fn test_logical_operators_lowercase() {
-        let sql = "in not like rlike glob match regexp".to_string();
+        let sql = "in not like rlike glob match regexp then else".to_string();
         let lexer = SqlLexer::new(sql);
 
         let expected = vec![
@@ -669,6 +679,10 @@ mod tests {
             Token::Operator(Operator::Logical(LogicalOperator::Match)),
             Token::Space,
             Token::Operator(Operator::Logical(LogicalOperator::Regexp)),
+            Token::Space,
+            Token::Operator(Operator::Logical(LogicalOperator::Then)),
+            Token::Space,
+            Token::Operator(Operator::Logical(LogicalOperator::Else)),
         ];
 
         assert_eq!(lexer.lex().tokens, expected);
@@ -676,7 +690,7 @@ mod tests {
 
     #[test]
     fn test_logical_operators_mixedcase() {
-        let sql = "In Not Like Rlike Glob Match Regexp".to_string();
+        let sql = "In Not Like Rlike Glob Match Regexp tHen ElsE".to_string();
         let lexer = SqlLexer::new(sql);
 
         let expected = vec![
@@ -693,6 +707,10 @@ mod tests {
             Token::Operator(Operator::Logical(LogicalOperator::Match)),
             Token::Space,
             Token::Operator(Operator::Logical(LogicalOperator::Regexp)),
+            Token::Space,
+            Token::Operator(Operator::Logical(LogicalOperator::Then)),
+            Token::Space,
+            Token::Operator(Operator::Logical(LogicalOperator::Else)),
         ];
 
         assert_eq!(lexer.lex().tokens, expected);
