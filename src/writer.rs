@@ -33,6 +33,8 @@ impl SqlWriter {
                 Token::Operator(Operator::Logical(LogicalOperator::Rlike)) => out.push_str("RLIKE"),
                 Token::Operator(Operator::Logical(LogicalOperator::Glob)) => out.push_str("GLOB"),
                 Token::Operator(Operator::Logical(LogicalOperator::Match)) => out.push_str("MATCH"),
+                Token::Operator(Operator::Logical(LogicalOperator::Then)) => out.push_str("THEN"),
+                Token::Operator(Operator::Logical(LogicalOperator::Else)) => out.push_str("ELSE"),
                 Token::Operator(Operator::Logical(LogicalOperator::Regexp)) => {
                     out.push_str("REGEXP")
                 }

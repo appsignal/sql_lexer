@@ -57,6 +57,8 @@ pub enum LogicalOperator {
     Glob,   // GLOB
     Match,  // MATCH
     Regexp, // REGEXP
+    Then,   // THEN
+    Else,   // ELSE
 }
 
 #[derive(Debug, PartialEq)]
