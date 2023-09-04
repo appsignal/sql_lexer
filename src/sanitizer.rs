@@ -118,6 +118,13 @@ impl SqlSanitizer {
                         _ => (),
                     }
                 }
+                // Remove comments
+                Token::Comment(_) => {
+                    self.sql.tokens.remove(pos);
+                    if self.sql.tokens.get(pos - 1) == Some(&Token::Space) {
+                        self.sql.tokens.remove(pos - 1);
+                    }
+                }
                 // Spaces don't influence the state by default
                 Token::Space => (),
                 // Keep state the same if we're in a insert values or keyword scope state
@@ -127,23 +134,6 @@ impl SqlSanitizer {
             }
 
             pos += 1;
-        }
-
-        pos = self.sql.tokens.len() - 1;
-
-        // Remove trailing comments
-        loop {
-            match self.sql.tokens[pos] {
-                Token::Comment(_) | Token::Space => self.remove(pos),
-                Token::Semicolon => (),
-                _ => break,
-            }
-
-            if pos == 0 {
-                break;
-            }
-
-            pos -= 1;
         }
 
         self.sql
@@ -518,7 +508,7 @@ mod tests {
     fn test_comment_pound() {
         assert_eq!(
             sanitize_string("SELECT * FROM table # This is a comment\n SELECT".to_string()),
-            "SELECT * FROM table # This is a comment\n SELECT"
+            "SELECT * FROM table\n SELECT"
         );
     }
 
@@ -526,7 +516,7 @@ mod tests {
     fn test_comment_double_dash() {
         assert_eq!(
             sanitize_string("SELECT * FROM table -- This is a comment\n SELECT".to_string()),
-            "SELECT * FROM table -- This is a comment\n SELECT"
+            "SELECT * FROM table\n SELECT"
         );
     }
 
@@ -534,7 +524,15 @@ mod tests {
     fn test_comment_multi_line() {
         assert_eq!(
             sanitize_string("SELECT * FROM table /* This is a comment */ SELECT".to_string()),
-            "SELECT * FROM table /* This is a comment */ SELECT"
+            "SELECT * FROM table SELECT"
+        );
+    }
+
+    #[test]
+    fn test_comment_end_of_subquery() {
+        assert_eq!(
+            sanitize_string("SELECT COUNT(*) FROM (SELECT (*) from table WHERE table.attr = 123 /* traceparent=00-a7bd9142c227de0d3c1dccb3a21800b8-1e30b841ea8c9b77-01 */) AS 'sub'".to_string()),
+            "SELECT COUNT(*) FROM (SELECT (*) FROM table WHERE table.attr = ?) AS 'sub'"
         );
     }
 
