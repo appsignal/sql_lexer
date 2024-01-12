@@ -14,7 +14,6 @@ enum State {
     KeywordScopeStarted,
     Array,
     ArrayStarted,
-    LiteralValueTypeIndicator,
 }
 
 pub struct SqlSanitizer {
@@ -55,7 +54,7 @@ impl SqlSanitizer {
                     state = State::KeywordScopeStarted
                 }
                 Token::Keyword(_) => state = State::Keyword,
-                Token::LiteralValueTypeIndicator(_) => state = State::LiteralValueTypeIndicator,
+                Token::LiteralValueTypeIndicator(_) => (),
                 Token::ParentheseOpen if state == State::ComparisonOperator => {
                     state = State::ComparisonScopeStarted
                 }
@@ -83,8 +82,7 @@ impl SqlSanitizer {
                         | State::InsertValues
                         | State::Offset
                         | State::KeywordScopeStarted
-                        | State::Between
-                        | State::LiteralValueTypeIndicator => {
+                        | State::Between => {
                             // Double quoted might (standard SQL) or might not (MySQL) be an identifier,
                             // but if it's a component in a dotted path, then we know it's part of an
                             // identifier and we should definitely not replace it with a placeholder.
@@ -368,6 +366,14 @@ mod tests {
         assert_eq!(
             sanitize_string("SELECT `table`.* FROM `table` WHERE `id` IN (SELECT `id` FROM `something` WHERE `a` = 1) LIMIT 1;".to_string()),
             "SELECT `table`.* FROM `table` WHERE `id` IN (SELECT `id` FROM `something` WHERE `a` = ?) LIMIT 1;"
+        );
+    }
+
+    #[test]
+    fn test_solidcache_json() {
+        assert_eq!(
+            sanitize_string("INSERT INTO `solid_cache_entries` (`key`,`value`,`created_at`) VALUES (x'76696577732f6974656d732f696e6465783a38323536366332313963306634393838626133333533366630623233623336382f6974656d732f31', '{\"p\":\"/CGjPP3XaEcnxN1hrPEId9VPX50YLDVTCyrZp9m1E+NBuJnfBGu2pEY2DzwaWcMCDdY1m2+IPH2mPqjT11Q3sdHx+UA1jTDzW1kHAEDfbwJjZU4sRh5+CKJqcvtB5+pP6gDIOaBKQdBl6sroZ+uODSy9LGMKJlQElaiqOmeLeOHH/UOX3aGeLpjSkRkPglBuAgsmqqmBAz8TlEzKRzIu+L6O8KL/tNJwLbFA8yU4IuT4t+a4rSqLK6+rZDwnAC1i+n6HH50i0KL/1xjKhC+oZ6g+fp9qQRyPOs9L1ffD670jMTspBvQ8A1QkOsn21hnWQGQlxKL+VWRu2Zxd5mhSj++xTL9WQwuhCHAClzs6oSbNGWM8W0uVutDwkASdEg9BNfpu0gVG/YbVkn0/EFqSoA5/YaR3HCKV1EeCNeffbG0sxXF6YVaMLzr+z7xwrBUhIR5VthOcvSRbla/Ww0yBDJpszDlsV/3aMtKMgFE572dD0mlwF2xALBOFJ3xbXGHML72Q/gOOtnlS8VlBJzD1Lklb/WY/SNLL7m0clUAHZxU/9wbWRnnlyWKymZdtym6xI49b1GeGv210jvgApVsaisweaFNsJ7fEEU7xFoBcxXKUuX503GaGUhttS1jALTrIdCatmh4FTEKJ47At2DgjoL35OP2ZlNQdQ3dI+tnsiOR/vbEgZ935eXfYsJPa79BH0zNwvi3ggqnXTYzaF92PY4cd0LO9sT7YZEbrM0KUcaXvTP63HC6tfGbRct73IRWfmIbXf5GFP6/m6CCh6LpoZP6pIx9cWqfndAe5/7QpL7A5h6MqZGy/5wbsUWXaIiSYbu2s+54iVYytYaO9in5fhAYIIFydsr4bQrPewFI6wzBO641DEKKiovC857D3yfgFc30Qob0FrUZq69kABI8sYsPctkIYfIcSXOUr7ZZdvb7+d9+uRIY0zncPc9hvYFqxY4MmQA7JQutGiDj/fJ+04xoTJBJB2tJ0gm4KnDjwv5oQUHGvYYT/ihZu98PTcPZmnmcoz6m3SoVd4T+IjQB/O/ay+r1mlTP9/ZdaI2bzds7XHb15SybmH3SbNccRP3JzXPYpvrX5syLdCykwsWppOki+pXHj6hT/peCay7KuxpQBj56USfuRT0ieXiRWUfirq/LrEEPLTAxgAFvEm7tdbGcjllOW8sSRyvFtredmT52qZdJGpHgkMewYQ5fGmpyQgmsuor2ahjHoZ9PFRxRjyZpslrcpm4UIrZklHHskiTh7YA5txebBMP8hmA==\",\"h\":{\"iv\":\"lwHVE2obcSHlpKoO\",\"at\":\"8wKr3ZuAMj6hgKmkL2iIQg==\",\"e\":\"QVNDSUktOEJJVA==\",\"c\":true}}', CURRENT_TIMESTAMP(6)) ON DUPLICATE KEY UPDATE `value`=VALUES(`value`)".to_string()),
+            "INSERT INTO `solid_cache_entries` (`key`,`value`,`created_at`) VALUES (x?, ?, CURRENT_TIMESTAMP(?)) ON DUPLICATE KEY UPDATE `value`=VALUES(`value`)"
         );
     }
 
