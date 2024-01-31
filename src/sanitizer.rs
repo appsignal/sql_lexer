@@ -152,6 +152,11 @@ mod tests {
     use super::super::sanitize_string;
 
     #[test]
+    fn test_empty() {
+        assert_eq!(sanitize_string("".to_string()), "")
+    }
+
+    #[test]
     fn test_select_where_single_quote() {
         assert_eq!(
             sanitize_string(
