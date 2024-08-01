@@ -363,6 +363,10 @@ impl SqlLexer {
                         }
                         // Null
                         s if s.eq_ignore_ascii_case("NULL") => Token::Null,
+                        // True
+                        s if s.eq_ignore_ascii_case("TRUE") => Token::True,
+                        // False
+                        s if s.eq_ignore_ascii_case("FALSE") => Token::False,
                         // Other keyword
                         _ => Token::Keyword(Keyword::Other(BufferSlice::new(
                             current_byte_offset,
@@ -1199,6 +1203,27 @@ mod tests {
             Token::Null,
             Token::Space,
             Token::Null,
+        ];
+
+        assert_eq!(lexer.lex().tokens, expected);
+    }
+
+    #[test]
+    fn test_true_false() {
+        let sql = "TRUE true True FALSE false False".to_string();
+        let lexer = SqlLexer::new(sql);
+        let expected = vec![
+            Token::True,
+            Token::Space,
+            Token::True,
+            Token::Space,
+            Token::True,
+            Token::Space,
+            Token::False,
+            Token::Space,
+            Token::False,
+            Token::Space,
+            Token::False,
         ];
 
         assert_eq!(lexer.lex().tokens, expected);

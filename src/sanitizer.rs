@@ -68,7 +68,43 @@ impl SqlSanitizer {
                 }
                 Token::Comma if state == State::InsertValuesJustClosed => (),
                 Token::ParentheseOpen if state == State::InsertValuesJustClosed => {
-                    state = State::InsertValues
+                    // We're past the first insert values clause. Remove every parentheses
+                    // group and replace them with an ellipsis.
+                    let start_pos = pos;
+                    let mut in_parentheses = true;
+                    let mut kept = 0;
+
+                    loop {
+                        if pos + kept >= self.sql.tokens.len() {
+                            break;
+                        }
+
+                        let keep = match self.sql.tokens[pos + kept] {
+                            Token::ParentheseClose => {
+                                in_parentheses = false;
+                                false
+                            }
+                            Token::ParentheseOpen => {
+                                in_parentheses = true;
+                                false
+                            }
+                            _ if in_parentheses => false,
+                            Token::Comma => true,
+                            Token::Space => true,
+                            _ => break,
+                        };
+
+                        if keep {
+                            kept += 1;
+                        } else {
+                            self.remove(pos + kept);
+                            while kept > 0 {
+                                kept -= 1;
+                                self.remove(pos + kept);
+                            }
+                        }
+                    }
+                    self.sql.tokens.insert(start_pos, Token::Ellipsis);
                 }
                 Token::ParentheseClose | Token::SquareBracketClose => state = State::Default,
                 Token::Dot if state == State::JoinOn => (),
@@ -76,7 +112,9 @@ impl SqlSanitizer {
                 token @ (Token::SingleQuoted(_)
                 | Token::DoubleQuoted(_)
                 | Token::Numeric(_)
-                | Token::Null) => {
+                | Token::Null
+                | Token::True
+                | Token::False) => {
                     match state {
                         State::ComparisonOperator
                         | State::InsertValues
@@ -485,7 +523,7 @@ mod tests {
     fn test_insert_multiple_values() {
         assert_eq!(
             sanitize_string("INSERT INTO `table` (`field1`, `field2`) VALUES ('value', 1, -1.0, 'value'),('value', 1, -1.0, 'value'),('value', 1, -1.0, 'value');".to_string()),
-            "INSERT INTO `table` (`field1`, `field2`) VALUES (?, ?, ?, ?),(?, ?, ?, ?),(?, ?, ?, ?);"
+            "INSERT INTO `table` (`field1`, `field2`) VALUES (?, ?, ?, ?),...;"
         );
     }
 
@@ -493,7 +531,7 @@ mod tests {
     fn test_insert_multiple_values_with_spaces() {
         assert_eq!(
             sanitize_string("INSERT INTO `table` (`field1`, `field2`) VALUES ('value', 1, -1.0, 'value'), ('value', 1, -1.0, 'value'), ('value', 1, -1.0, 'value');".to_string()),
-            "INSERT INTO `table` (`field1`, `field2`) VALUES (?, ?, ?, ?), (?, ?, ?, ?), (?, ?, ?, ?);"
+            "INSERT INTO `table` (`field1`, `field2`) VALUES (?, ?, ?, ?), ...;"
         );
     }
 
@@ -509,9 +547,29 @@ mod tests {
     fn test_insert_null() {
         assert_eq!(
             sanitize_string(
-                "INSERT INTO \"table\" (\"field1\", \"field2\") VALUES (NULL, 1);".to_string()
+                "INSERT INTO \"table\" (\"field1\", \"field2\") VALUES (1, NULL), (NULL, 1), (NULL, NULL), (1, 1);".to_string()
             ),
-            "INSERT INTO \"table\" (\"field1\", \"field2\") VALUES (?, ?);"
+            "INSERT INTO \"table\" (\"field1\", \"field2\") VALUES (?, ?), ...;"
+        );
+    }
+
+    #[test]
+    fn test_insert_true_false() {
+        assert_eq!(
+            sanitize_string(
+                "INSERT INTO \"table\" (\"field1\", \"field2\") VALUES (TRUE, FALSE), (1, 2), (FALSE, TRUE), (2, 1);".to_string()
+            ),
+            "INSERT INTO \"table\" (\"field1\", \"field2\") VALUES (?, ?), ...;"
+        );
+    }
+
+    #[test]
+    fn test_insert_many_on_conflict() {
+        assert_eq!(
+            sanitize_string(
+                "INSERT INTO \"table\" (\"field1\", \"field2\") VALUES (TRUE, FALSE), (1, 2), (FALSE, TRUE), (2, 1) ON CONFLICT DO NOTHING RETURNING \"field1\";".to_string()
+            ),
+            "INSERT INTO \"table\" (\"field1\", \"field2\") VALUES (?, ?), ... ON CONFLICT DO NOTHING RETURNING \"field1\";"
         );
     }
 
