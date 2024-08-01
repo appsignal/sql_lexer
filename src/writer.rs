@@ -171,6 +171,8 @@ impl SqlWriter {
                 Token::Semicolon => out.push(';'),
                 Token::Placeholder => out.push('?'),
                 Token::Null => out.push_str("NULL"),
+                Token::True => out.push_str("TRUE"),
+                Token::False => out.push_str("FALSE"),
                 Token::NumberedPlaceholder(ref slice) => {
                     out.push_str(self.sql.buffer_content(slice));
                 }

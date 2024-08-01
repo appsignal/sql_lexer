@@ -76,7 +76,9 @@ impl SqlSanitizer {
                 token @ (Token::SingleQuoted(_)
                 | Token::DoubleQuoted(_)
                 | Token::Numeric(_)
-                | Token::Null) => {
+                | Token::Null
+                | Token::True
+                | Token::False) => {
                     match state {
                         State::ComparisonOperator
                         | State::InsertValues
@@ -509,9 +511,19 @@ mod tests {
     fn test_insert_null() {
         assert_eq!(
             sanitize_string(
-                "INSERT INTO \"table\" (\"field1\", \"field2\") VALUES (NULL, 1);".to_string()
+                "INSERT INTO \"table\" (\"field1\", \"field2\") VALUES (1, NULL), (NULL, 1), (NULL, NULL), (1, 1);".to_string()
             ),
-            "INSERT INTO \"table\" (\"field1\", \"field2\") VALUES (?, ?);"
+            "INSERT INTO \"table\" (\"field1\", \"field2\") VALUES (?, ?), (?, ?), (?, ?), (?, ?);"
+        );
+    }
+
+    #[test]
+    fn test_insert_true_false() {
+        assert_eq!(
+            sanitize_string(
+                "INSERT INTO \"table\" (\"field1\", \"field2\") VALUES (1, 2), (TRUE, FALSE), (FALSE, TRUE), (2, 1);".to_string()
+            ),
+            "INSERT INTO \"table\" (\"field1\", \"field2\") VALUES (?, ?), (?, ?), (?, ?), (?, ?);"
         );
     }
 
