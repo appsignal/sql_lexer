@@ -138,6 +138,7 @@ pub enum Token {
     Colon,
     Semicolon,
     Placeholder,
+    Ellipsis,
     Null,
     True,
     False,
