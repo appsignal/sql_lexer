@@ -171,6 +171,7 @@ impl SqlWriter {
                 Token::Semicolon => out.push(';'),
                 Token::Placeholder => out.push('?'),
                 Token::Ellipsis => out.push_str("..."),
+                Token::None => {}
                 Token::Null => out.push_str("NULL"),
                 Token::True => out.push_str("TRUE"),
                 Token::False => out.push_str("FALSE"),
