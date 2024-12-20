@@ -97,14 +97,17 @@ impl SqlSanitizer {
                         if keep {
                             kept += 1;
                         } else {
+                            let mut removed = 1;
                             self.remove(pos + kept);
                             while kept > 0 {
                                 kept -= 1;
+                                removed += 1;
                                 self.remove(pos + kept);
                             }
+                            pos += removed;
                         }
                     }
-                    self.sql.tokens.insert(start_pos, Token::Ellipsis);
+                    self.ellipsis(start_pos);
                 }
                 Token::ParentheseClose | Token::SquareBracketClose => state = State::Default,
                 Token::Dot if state == State::JoinOn => (),
@@ -146,23 +149,28 @@ impl SqlSanitizer {
                                 match self.sql.tokens[pos] {
                                     Token::ParentheseClose => break,
                                     Token::SquareBracketClose => break,
-                                    _ => self.remove(pos),
+                                    _ => {
+                                        self.remove(pos);
+                                        pos += 1;
+                                    }
                                 }
                             }
-                            self.sql.tokens.insert(start_pos, Token::Placeholder);
+                            self.placeholder(start_pos);
                         }
                         _ => (),
                     }
                 }
                 // Remove comments
                 Token::Comment(_) => {
-                    self.sql.tokens.remove(pos);
+                    self.remove(pos);
                     if self.sql.tokens.get(pos - 1) == Some(&Token::Space) {
-                        self.sql.tokens.remove(pos - 1);
+                        self.remove(pos - 1);
                     }
                 }
                 // Spaces don't influence the state by default
                 Token::Space => (),
+                // Non-tokens don't influence the state
+                Token::None => (),
                 // Keep state the same if we're in a insert values or keyword scope state
                 _ if state == State::InsertValues || state == State::KeywordScopeStarted => (),
                 // Reset state to default if there were no matches
@@ -176,12 +184,17 @@ impl SqlSanitizer {
     }
 
     fn remove(&mut self, position: usize) {
-        self.sql.tokens.remove(position);
+        self.sql.tokens[position] = Token::None;
     }
 
+    // Replaces the token at position `position` with a placeholder.
     fn placeholder(&mut self, position: usize) {
-        self.sql.tokens.remove(position);
-        self.sql.tokens.insert(position, Token::Placeholder);
+        self.sql.tokens[position] = Token::Placeholder;
+    }
+
+    // Replaces the token at position `position` with an ellipsis.
+    fn ellipsis(&mut self, position: usize) {
+        self.sql.tokens[position] = Token::Ellipsis;
     }
 }
 

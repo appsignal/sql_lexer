@@ -137,8 +137,12 @@ pub enum Token {
     SquareBracketClose,
     Colon,
     Semicolon,
+    // Used by the sanitizer to replace values
     Placeholder,
+    // Used by the sanitizer to replace repeated value lists
     Ellipsis,
+    // Used by the sanitizer to remove tokens
+    None,
     Null,
     True,
     False,
