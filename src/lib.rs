@@ -1,8 +1,3 @@
-#![cfg_attr(test, feature(test))]
-
-#[cfg(test)]
-extern crate test;
-
 mod lexer;
 mod sanitizer;
 mod writer;
@@ -309,41 +304,5 @@ mod tests {
             super::sanitize_string("SELECT * FROM `table` WHERE id = 1;".to_string()),
             "SELECT * FROM `table` WHERE id = ?;"
         );
-    }
-
-    #[bench]
-    fn bench_sanitize_string_quote(b: &mut test::Bencher) {
-        b.iter(|| {
-            test::black_box(super::sanitize_string(
-                "SELECT `table`.* FROM `table` WHERE `id` = 'secret' LIMIT 1;".to_string(),
-            ));
-        });
-    }
-
-    #[bench]
-    fn bench_sanitize_string_numeric(b: &mut test::Bencher) {
-        b.iter(|| {
-            test::black_box(super::sanitize_string(
-                "SELECT `table`.* FROM `table` WHERE `id` = 1 LIMIT 1;".to_string(),
-            ));
-        });
-    }
-
-    #[bench]
-    fn bench_sanitize_string_in(b: &mut test::Bencher) {
-        b.iter(|| {
-            test::black_box(super::sanitize_string(
-                "SELECT `table`.* FROM `table` WHERE `id` IN (1, 2, 3) LIMIT 1;".to_string(),
-            ));
-        });
-    }
-
-    #[bench]
-    fn bench_sanitize_insert(b: &mut test::Bencher) {
-        b.iter(|| {
-            test::black_box(super::sanitize_string(
-                "INSERT INTO \"table\" (\"field1\", \"field2\") VALUES ('value', 1);".to_string(),
-            ));
-        });
     }
 }

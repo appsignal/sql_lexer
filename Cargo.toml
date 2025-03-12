@@ -1,6 +1,7 @@
 [package]
 name        = "sql_lexer"
 version     = "0.9.8"
+edition     = "2018"
 authors     = ["Thijs Cadier <thijs@appsignal.com>"]
 description = "Library to lex and sanitize SQL"
 readme      = "README.md"
