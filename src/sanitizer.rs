@@ -408,10 +408,20 @@ mod tests {
     }
 
     #[test]
-    fn test_select_in() {
+    fn test_select_in_values() {
         assert_eq!(
             sanitize_string(
                 "SELECT `table`.* FROM `table` WHERE `id` IN (1, 2, 3) LIMIT 1;".to_string()
+            ),
+            "SELECT `table`.* FROM `table` WHERE `id` IN (?) LIMIT 1;"
+        );
+    }
+
+    #[test]
+    fn test_select_in_param_prefix() {
+        assert_eq!(
+            sanitize_string(
+                "SELECT `table`.* FROM `table` WHERE `id` IN ($1, $2, $3) LIMIT 1;".to_string()
             ),
             "SELECT `table`.* FROM `table` WHERE `id` IN (?) LIMIT 1;"
         );
@@ -555,6 +565,14 @@ mod tests {
         assert_eq!(
             sanitize_string("INSERT INTO `table` (`field1`, `field2`) VALUES ('value', 1, -1.0, 'value'), ('value', 1, -1.0, 'value'), ('value', 1, -1.0, 'value');".to_string()),
             "INSERT INTO `table` (`field1`, `field2`) VALUES (?, ?, ?, ?), ...;"
+        );
+    }
+
+    #[test]
+    fn test_insert_values_with_bool() {
+        assert_eq!(
+            sanitize_string("INSERT INTO `table` (`field1`, `field2`) VALUES ('value', FALSE, 1, -1.0, 'value');".to_string()),
+            "INSERT INTO `table` (`field1`, `field2`) VALUES (?, ?, ?, ?, ?);"
         );
     }
 
