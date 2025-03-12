@@ -472,6 +472,16 @@ mod tests {
     }
 
     #[test]
+    fn test_select_order_by_field() {
+        assert_eq!(
+            sanitize_string(
+                r#"SELECT `table`.* FROM `table` WHERE `table`.`id` = 1 ORDER BY field(id, 111030,1933535)"#.to_string()
+            ),
+            r#"SELECT `table`.* FROM `table` WHERE `table`.`id` = ? ORDER BY field(?)"#
+        );
+    }
+
+    #[test]
     fn test_select_with_functions_regex_and_newlines() {
         let original = "SELECT a.attname, format_type(a.atttypid, a.atttypmod),
                          pg_get_expr(d.adbin, d.adrelid), a.attnotnull, a.atttypid, a.atttypmod
