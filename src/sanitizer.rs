@@ -34,40 +34,36 @@ impl SqlSanitizer {
                 break;
             }
 
-            match &self.sql.tokens[pos] {
-                // Determine if we want to change or keep state
-                Token::Operator(_) if state != State::JoinOn => state = State::ComparisonOperator,
-                Token::Keyword(Keyword::Values) => state = State::InsertValues,
-                Token::Keyword(Keyword::On) => state = State::JoinOn,
-                Token::Keyword(Keyword::Offset) => state = State::Offset,
-                Token::Keyword(Keyword::Between) => state = State::Between,
-                Token::Keyword(Keyword::Array) => state = State::Array,
-                Token::Keyword(Keyword::And) if state == State::Between => (),
-                Token::Keyword(Keyword::And) if state == State::Keyword => {
+            let token = &self.sql.tokens[pos];
+            match (token, &state) {
+                (Token::Operator(_), State::JoinOn) => state = State::Default,
+                (Token::Operator(_), _) => state = State::ComparisonOperator,
+                (Token::Keyword(Keyword::Values), _) => state = State::InsertValues,
+                (Token::Keyword(Keyword::On), _) => state = State::JoinOn,
+                (Token::Keyword(Keyword::Offset), _) => state = State::Offset,
+                (Token::Keyword(Keyword::Between), _) => state = State::Between,
+                (Token::Keyword(Keyword::Array), _) => state = State::Array,
+                (Token::Keyword(Keyword::And), State::Between) => (),
+                (Token::Keyword(Keyword::And | Keyword::Or), State::Keyword) => {
                     state = State::KeywordScopeStarted
                 }
-                Token::Keyword(Keyword::Or) if state == State::Keyword => {
+                (Token::Keyword(Keyword::Insert | Keyword::Into), _) => (),
+                (Token::Keyword(_), State::KeywordScopeStarted) => {
                     state = State::KeywordScopeStarted
                 }
-                Token::Keyword(Keyword::Insert) | Token::Keyword(Keyword::Into) => (),
-                Token::Keyword(_) if state == State::KeywordScopeStarted => {
-                    state = State::KeywordScopeStarted
-                }
-                Token::Keyword(_) => state = State::Keyword,
-                Token::LiteralValueTypeIndicator(_) => (),
-                Token::ParentheseOpen if state == State::ComparisonOperator => {
+                (Token::Keyword(_), _) => state = State::Keyword,
+                (Token::LiteralValueTypeIndicator(_), _) => (),
+                (Token::ParentheseOpen, State::ComparisonOperator) => {
                     state = State::ComparisonScopeStarted
                 }
-                Token::ParentheseOpen if state == State::Keyword => {
-                    state = State::KeywordScopeStarted
-                }
-                Token::ParentheseOpen if state == State::InsertValues => (),
-                Token::SquareBracketOpen if state == State::Array => state = State::ArrayStarted,
-                Token::ParentheseClose if state == State::InsertValues => {
+                (Token::ParentheseOpen, State::Keyword) => state = State::KeywordScopeStarted,
+                (Token::ParentheseOpen, State::InsertValues) => (),
+                (Token::SquareBracketOpen, State::Array) => state = State::ArrayStarted,
+                (Token::ParentheseClose, State::InsertValues) => {
                     state = State::InsertValuesJustClosed
                 }
-                Token::Comma if state == State::InsertValuesJustClosed => (),
-                Token::ParentheseOpen if state == State::InsertValuesJustClosed => {
+                (Token::Comma, State::InsertValuesJustClosed) => (),
+                (Token::ParentheseOpen, State::InsertValuesJustClosed) => {
                     // We're past the first insert values clause. Remove every parentheses
                     // group and replace them with an ellipsis.
                     let start_pos = pos;
@@ -109,70 +105,75 @@ impl SqlSanitizer {
                     }
                     self.ellipsis(start_pos);
                 }
-                Token::ParentheseClose | Token::SquareBracketClose => state = State::Default,
-                Token::Dot if state == State::JoinOn => (),
-                // This is content we might want to sanitize
-                token @ (Token::SingleQuoted(_)
-                | Token::DoubleQuoted(_)
-                | Token::Numeric(_)
-                | Token::Null
-                | Token::True
-                | Token::False) => {
-                    match state {
-                        State::ComparisonOperator
-                        | State::InsertValues
-                        | State::Offset
-                        | State::KeywordScopeStarted
-                        | State::Between => {
-                            // Double quoted might (standard SQL) or might not (MySQL) be an identifier,
-                            // but if it's a component in a dotted path, then we know it's part of an
-                            // identifier and we should definitely not replace it with a placeholder.
-                            match token {
-                                Token::DoubleQuoted(_) => {
-                                    if !(self.sql.tokens.get(pos - 1) == Some(&Token::Dot)
-                                        || self.sql.tokens.get(pos + 1) == Some(&Token::Dot))
-                                    {
-                                        self.placeholder(pos)
-                                    }
-                                }
-                                _ => self.placeholder(pos),
-                            }
-                        }
-                        State::ComparisonScopeStarted | State::ArrayStarted => {
-                            // We're in an IN () or ARRAY[] and it starts with content. Remove everything until
-                            // the closing parenthese and put one placeholder in between.
-                            let start_pos = pos;
-                            loop {
-                                if pos >= self.sql.tokens.len() {
-                                    break;
-                                }
-                                match self.sql.tokens[pos] {
-                                    Token::ParentheseClose => break,
-                                    Token::SquareBracketClose => break,
-                                    _ => {
-                                        self.remove(pos);
-                                        pos += 1;
-                                    }
-                                }
-                            }
-                            self.placeholder(start_pos);
-                        }
-                        _ => (),
+                (Token::ParentheseClose | Token::SquareBracketClose, _) => state = State::Default,
+                (Token::Dot, State::JoinOn) => (),
+                (
+                    Token::SingleQuoted(_)
+                    | Token::Numeric(_)
+                    | Token::Null
+                    | Token::True
+                    | Token::False,
+                    State::ComparisonOperator
+                    | State::InsertValues
+                    | State::Offset
+                    | State::KeywordScopeStarted
+                    | State::Between,
+                ) => self.placeholder(pos),
+                // Double quoted might (standard SQL) or might not (MySQL) be an identifier,
+                // but if it's a component in a dotted path, then we know it's part of an
+                // identifier and we should definitely not replace it with a placeholder.
+                (
+                    Token::DoubleQuoted(_),
+                    State::ComparisonOperator
+                    | State::InsertValues
+                    | State::Offset
+                    | State::KeywordScopeStarted
+                    | State::Between,
+                ) => {
+                    if !(self.sql.tokens.get(pos - 1) == Some(&Token::Dot)
+                        || self.sql.tokens.get(pos + 1) == Some(&Token::Dot))
+                    {
+                        self.placeholder(pos)
                     }
                 }
+                // We're in an IN () or ARRAY[] and it starts with content. Remove everything until
+                // the closing parenthese and put one placeholder in between.
+                (
+                    Token::SingleQuoted(_)
+                    | Token::DoubleQuoted(_)
+                    | Token::Numeric(_)
+                    | Token::Null
+                    | Token::True
+                    | Token::False,
+                    State::ComparisonScopeStarted | State::ArrayStarted,
+                ) => {
+                    let start_pos = pos;
+                    loop {
+                        if pos >= self.sql.tokens.len() {
+                            break;
+                        }
+                        match self.sql.tokens[pos] {
+                            Token::ParentheseClose => break,
+                            Token::SquareBracketClose => break,
+                            _ => {
+                                self.remove(pos);
+                                pos += 1;
+                            }
+                        }
+                    }
+                    self.placeholder(start_pos);
+                }
                 // Remove comments
-                Token::Comment(_) => {
+                (Token::Comment(_), _) => {
                     self.remove(pos);
                     if self.sql.tokens.get(pos - 1) == Some(&Token::Space) {
                         self.remove(pos - 1);
                     }
                 }
-                // Spaces don't influence the state by default
-                Token::Space => (),
-                // Non-tokens don't influence the state
-                Token::None => (),
+                // Spaces and non-tokens don't influence the state
+                (Token::Space | Token::None, _) => (),
                 // Keep state the same if we're in a insert values or keyword scope state
-                _ if state == State::InsertValues || state == State::KeywordScopeStarted => (),
+                (_, State::InsertValues | State::KeywordScopeStarted) => (),
                 // Reset state to default if there were no matches
                 _ => state = State::Default,
             }
