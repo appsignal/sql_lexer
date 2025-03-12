@@ -144,7 +144,8 @@ impl SqlSanitizer {
                     | Token::Numeric(_)
                     | Token::Null
                     | Token::True
-                    | Token::False,
+                    | Token::False
+                    | Token::NumberedPlaceholder(_),
                     State::ComparisonScopeStarted | State::ArrayStarted,
                 ) => {
                     let start_pos = pos;
