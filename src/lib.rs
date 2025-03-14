@@ -187,7 +187,6 @@ pub fn sanitize_string(buf: String) -> String {
 mod tests {
     use super::Sql;
     use super::{BufferSlice, ComparisonOperator, Keyword, Operator, Token};
-    use test;
 
     #[test]
     fn test_buffer_content() {

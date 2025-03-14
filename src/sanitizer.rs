@@ -1,10 +1,9 @@
-use super::{Keyword, Sql, Token};
+use super::{Keyword, LogicalOperator, Operator, Sql, Token};
 
 #[derive(Debug, PartialEq)]
 enum State {
     Default,
     ComparisonOperator,
-    ComparisonScopeStarted,
     InsertValues,
     InsertValuesJustClosed,
     JoinOn,
@@ -36,6 +35,9 @@ impl SqlSanitizer {
 
             let token = &self.sql.tokens[pos];
             match (token, &state) {
+                (Token::Operator(Operator::Logical(LogicalOperator::In)), _) => {
+                    state = State::Keyword
+                }
                 (Token::Operator(_), State::JoinOn) => state = State::Default,
                 (Token::Operator(_), _) => state = State::ComparisonOperator,
                 (Token::Keyword(Keyword::Values), _) => state = State::InsertValues,
@@ -44,17 +46,19 @@ impl SqlSanitizer {
                 (Token::Keyword(Keyword::Between), _) => state = State::Between,
                 (Token::Keyword(Keyword::Array), _) => state = State::Array,
                 (Token::Keyword(Keyword::And), State::Between) => (),
-                (Token::Keyword(Keyword::And | Keyword::Or), State::Keyword) => {
-                    state = State::KeywordScopeStarted
+                (Token::Keyword(Keyword::And | Keyword::Or), _) => {
+                    state = State::ComparisonOperator
                 }
                 (Token::Keyword(Keyword::Insert | Keyword::Into), _) => (),
+                (Token::Keyword(Keyword::Limit | Keyword::From), _) => state = State::Default,
+                (Token::Keyword(Keyword::Where), _) => state = State::ComparisonOperator,
                 (Token::Keyword(_), State::KeywordScopeStarted) => {
                     state = State::KeywordScopeStarted
                 }
-                (Token::Keyword(_), _) => state = State::Keyword,
+                (Token::Keyword(Keyword::Other(_)), _) => state = State::Keyword,
                 (Token::LiteralValueTypeIndicator(_), _) => (),
                 (Token::ParentheseOpen, State::ComparisonOperator) => {
-                    state = State::ComparisonScopeStarted
+                    state = State::ComparisonOperator
                 }
                 (Token::ParentheseOpen, State::Keyword) => state = State::KeywordScopeStarted,
                 (Token::ParentheseOpen, State::InsertValues) => (),
@@ -116,7 +120,6 @@ impl SqlSanitizer {
                     State::ComparisonOperator
                     | State::InsertValues
                     | State::Offset
-                    | State::KeywordScopeStarted
                     | State::Between,
                 ) => self.placeholder(pos),
                 // Double quoted might (standard SQL) or might not (MySQL) be an identifier,
@@ -127,7 +130,6 @@ impl SqlSanitizer {
                     State::ComparisonOperator
                     | State::InsertValues
                     | State::Offset
-                    | State::KeywordScopeStarted
                     | State::Between,
                 ) => {
                     if !(self.sql.tokens.get(pos - 1) == Some(&Token::Dot)
@@ -136,7 +138,8 @@ impl SqlSanitizer {
                         self.placeholder(pos)
                     }
                 }
-                // We're in an IN () or ARRAY[] and it starts with content. Remove everything until
+                // We're in an IN () or ARRAY[] or within the arguments of a function,
+                // and it starts with content. Remove everything until
                 // the closing parenthese and put one placeholder in between.
                 (
                     Token::SingleQuoted(_)
@@ -146,7 +149,7 @@ impl SqlSanitizer {
                     | Token::True
                     | Token::False
                     | Token::NumberedPlaceholder(_),
-                    State::ComparisonScopeStarted | State::ArrayStarted,
+                    State::ArrayStarted | State::KeywordScopeStarted,
                 ) => {
                     let start_pos = pos;
                     loop {
@@ -271,7 +274,7 @@ mod tests {
                 "SELECT `table`.* FROM `table` WHERE `name` = COMMAND('table', 'lower') LIMIT 1;"
                     .to_string()
             ),
-            "SELECT `table`.* FROM `table` WHERE `name` = COMMAND(?, ?) LIMIT 1;"
+            "SELECT `table`.* FROM `table` WHERE `name` = COMMAND(?) LIMIT 1;"
         );
     }
 
@@ -314,7 +317,7 @@ mod tests {
     fn test_select_and_quoted() {
         assert_eq!(
             sanitize_string("SELECT \"table\".* FROM \"table\" WHERE \"field1\" = 1 AND \"field2\" = 'something';".to_string()),
-            "SELECT \"table\".* FROM \"table\" WHERE \"field1\" = ? AND \"field2\" = ?;"
+            "SELECT \"table\".* FROM \"table\" WHERE ? = ? AND ? = ?;"
         );
     }
 
@@ -463,7 +466,7 @@ mod tests {
                 "SELECT * FROM \"table\" WHERE \"field\" = ARRAY['item_1','item_2','item_3'];"
                     .to_string()
             ),
-            "SELECT * FROM \"table\" WHERE \"field\" = ARRAY[?];"
+            "SELECT * FROM \"table\" WHERE ? = ARRAY[?];"
         );
     }
 
@@ -489,7 +492,7 @@ mod tests {
             sanitize_string(
                 r#"SELECT `table`.* FROM `table` WHERE `table`.`id` = 1 ORDER BY field(id, 111030,1933535)"#.to_string()
             ),
-            r#"SELECT `table`.* FROM `table` WHERE `table`.`id` = ? ORDER BY field(?)"#
+            r#"SELECT `table`.* FROM `table` WHERE `table`.`id` = ? ORDER BY field(id, ?)"#
         );
     }
 
@@ -696,7 +699,7 @@ mod tests {
             sanitize_string(
                 "SELECT jsonb_extract_path(table.data, 'foo', 22) FROM table;".to_string()
             ),
-            "SELECT jsonb_extract_path(table.data, ?, ?) FROM table;"
+            "SELECT jsonb_extract_path(table.data, ?) FROM table;"
         );
     }
 
@@ -707,7 +710,7 @@ mod tests {
                 "SELECT jsonb_extract_path(\"table\".\"data\", 'foo', 22) FROM \"table\";"
                     .to_string()
             ),
-            "SELECT jsonb_extract_path(\"table\".\"data\", ?, ?) FROM \"table\";"
+            "SELECT jsonb_extract_path(?) FROM \"table\";"
         );
     }
 
@@ -718,7 +721,7 @@ mod tests {
                 "SELECT id FROM table WHERE jsonb_extract_path(table.data, 'foo', 22) = 'bar';"
                     .to_string()
             ),
-            "SELECT id FROM table WHERE jsonb_extract_path(table.data, ?, ?) = ?;"
+            "SELECT id FROM table WHERE jsonb_extract_path(table.data, ?) = ?;"
         );
     }
 
