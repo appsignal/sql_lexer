@@ -38,8 +38,8 @@ The documentation is available [here](https://docs.rs/sql_lexer).
 There's a utility included to sanitize a sql query in a file to
 facilitate testing:
 
-```
-cargo run -- <path-to-file>
+```shell
+cargo run --bin main -- <path-to-file>
 ```
 
 ## License

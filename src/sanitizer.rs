@@ -166,6 +166,7 @@ impl SqlSanitizer {
                         }
                     }
                     self.placeholder(start_pos);
+                    continue;
                 }
                 // Remove comments
                 (Token::Comment(_), _) => {
@@ -732,6 +733,63 @@ mod tests {
                 r#"SELECT "table"."id" FROM "table" WHERE ("table"."data" = 'foo');"#.to_string()
             ),
             r#"SELECT "table"."id" FROM "table" WHERE ("table"."data" = ?);"#
+        );
+    }
+
+    #[test]
+    fn test_select_command_column() {
+        assert_eq!(
+            sanitize_string(r#"SELECT COMMAND("arg") FROM "table";"#.to_string()),
+            r#"SELECT COMMAND(?) FROM "table";"#
+        );
+    }
+
+    #[test]
+    fn test_select_command_column_with_alias() {
+        assert_eq!(
+            sanitize_string(r#"SELECT COMMAND("arg") AS "col1" FROM "table";"#.to_string()),
+            r#"SELECT COMMAND(?) AS "col1" FROM "table";"#
+        );
+    }
+
+    #[test]
+    fn test_multiple_columns_with_command() {
+        assert_eq!(
+            sanitize_string(r#"SELECT COMMAND("arg"), "field1" FROM "table";"#.to_string()),
+            r#"SELECT COMMAND(?), "field1" FROM "table";"#
+        );
+
+        assert_eq!(
+            sanitize_string(r#"SELECT "field1", COMMAND("arg") FROM "table";"#.to_string()),
+            r#"SELECT "field1", COMMAND(?) FROM "table";"#
+        );
+    }
+
+    #[test]
+    fn test_multiple_columns_with_command_and_alias() {
+        assert_eq!(
+            sanitize_string(
+                r#"SELECT COMMAND("arg") AS "col1", "field1" FROM "table";"#.to_string()
+            ),
+            r#"SELECT COMMAND(?) AS "col1", "field1" FROM "table";"#
+        );
+
+        assert_eq!(
+            sanitize_string(
+                r#"SELECT "field1", COMMAND("arg") AS "col1" FROM "table";"#.to_string()
+            ),
+            r#"SELECT "field1", COMMAND(?) AS "col1" FROM "table";"#
+        );
+    }
+
+    #[test]
+    fn test_select_command_column_with_parenthesis() {
+        assert_eq!(
+            sanitize_string(
+                r#"SELECT COMMAND("arg") AS "col1" FROM "table" WHERE ("field1" = "this");"#
+                    .to_string()
+            ),
+            r#"SELECT COMMAND(?) AS "col1" FROM "table" WHERE (? = ?);"#
         );
     }
 }
